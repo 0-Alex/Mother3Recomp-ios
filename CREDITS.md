@@ -50,12 +50,22 @@ This project is made possible through the incredible work of developers, transla
 
 ---
 
-## 6. Port Integration, Packaging & Visuals
+## 6. Android & Linux Ports
+* **Android Port Lead**: **YlPorts** ([github.com/YlPorts/Mother3Recomp-Android](https://github.com/YlPorts/Mother3Recomp-Android)) — Android NDK port, Gradle packaging, JNI lifecycle bindings, SDLActivity integration, and the `Mother3SetupActivity` launcher.
+* **Linux Port & Cross-Platform Support**: Built on the native Linux runtime architecture of `gbarecomp` by **Matthew Stanley** and the **RetroPortingToolKit** open-source community.
+* **Official Forks**:
+  - Android Fork: [josiahg2502-glitch/Mother3Recomp-Android](https://github.com/josiahg2502-glitch/Mother3Recomp-Android)
+  - Linux Fork: [josiahg2502-glitch/Mother3Recomp-Linux](https://github.com/josiahg2502-glitch/Mother3Recomp-Linux)
+
+---
+
+## 7. Port Integration, Packaging & Visuals
 * **1080p Sunset & Party Bezel Artwork**: Custom full-HD border artwork incorporating MOTHER 3 character sprites (Lucas, Kumatora, Duster, Boney) with the sunflower field and Nowhere Islands sunset.
-* **Interposer Runtime (`mother3_bezel.dll`)**: Custom SDL Dynamic API hook for seamless 1080p bezel composition, 3:2 aspect integer scaling, and PC hotkeys (`F11` overlay menu, `Esc` exit, `F1`/`F2` save states).
+* **Interposer Runtime (`mother3_bezel.dll`)**: Custom SDL Dynamic API hook for seamless 1080p bezel composition, 3:2 aspect integer scaling, F10 bezel toggle (Clean Fullscreen mode), and PC hotkeys (`F11` overlay menu, `Esc` exit, `F1`/`F2` save states).
 * **Multi-Resolution Application Icon**: Custom embedded `Mother 3.ico` icon packaging official logo artwork.
 * **Automated One-Click Mod Patcher**: PowerShell/Batch script for instant zero-dependency ROM patching.
 
 ---
 
 *This project is an unofficial, non-commercial educational and preservation effort. No copyrighted Nintendo ROMs, BIOS dumps, or commercial game audio files are bundled or distributed.*
+

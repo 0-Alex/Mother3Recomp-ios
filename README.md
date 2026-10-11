@@ -1,8 +1,8 @@
-# MOTHER 3 Native PC Port (Recompilation) v1.0.1
+# MOTHER 3 Native Port (Recompilation) v1.0.2
 
-A native 64-bit Windows port of **MOTHER 3** featuring the official **MOTHER 3 Fan Translation v1.3 (English)** with native support for the **High-Quality 16-Bit Sound Mixing Mod**. 
+A native multi-platform port of **MOTHER 3** featuring the official **MOTHER 3 Fan Translation v1.3 (English)** with native support for the **High-Quality 16-Bit Sound Mixing Mod**, clean fullscreen mode, and dedicated packages for **Windows**, **Linux**, and **Android**.
 
-Unlike conventional emulation, this project statically recompiles the original Game Boy Advance ARM/Thumb machine code into native C++ instructions. The resulting binary executes natively on modern PC hardware with ultra-low latency, full analog movement, custom bezel framing, integer scaling, and instant save state controls.
+Unlike conventional emulation, this project statically recompiles the original Game Boy Advance ARM/Thumb machine code into native C++ instructions. The resulting binary executes natively on modern hardware with ultra-low latency, full analog movement, optional decorative bezel framing, integer scaling, and instant save state controls.
 
 ---
 
@@ -23,7 +23,25 @@ Unlike conventional emulation, this project statically recompiles the original G
 
 ---
 
-## 1. Requirements
+## 1. What's New in v1.0.2
+
+* **Clean Fullscreen / No Borders Mode**:
+  - Want to play in full screen without the decorative border artwork? Press **`F10`** at any time during gameplay to toggle between the **1080p Sunset & Party Bezel** and **Clean Fullscreen Mode (No Borders)**!
+  - You can also set `bezel = 0` under `[Launcher]` in `config.ini` to launch directly in clean fullscreen mode by default.
+* **Classic Display Profile Compatibility**:
+  - Addressed driver-level black screen reports when selecting the "Classic" color profile by decoupling the viewport scaling and texture blend fallbacks.
+* **Separate Multi-Platform Packages & Forks**:
+  - Dedicated releases are now downloadable individually:
+    - **Windows (x64)**: [`Mother3Recomp-v1.0.2-windows-x64.zip`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.2)
+    - **Linux (x86_64 / Steam Deck)**: [`Mother3Recomp-v1.0.2-linux-x86_64.tar.gz`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.2)
+    - **Android (ARM64)**: [`Mother3Recomp-v1.0.2-android-arm64.apk`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.2)
+  - Dedicated repository forks:
+    - Android Port Repository: [josiahg2502-glitch/Mother3Recomp-Android](https://github.com/josiahg2502-glitch/Mother3Recomp-Android)
+    - Linux Port Repository: [josiahg2502-glitch/Mother3Recomp-Linux](https://github.com/josiahg2502-glitch/Mother3Recomp-Linux)
+
+---
+
+## 2. Requirements
 
 ### Game & Asset Requirements
 To play, you must provide your own legitimate dumps of:
@@ -37,28 +55,48 @@ To play, you must provide your own legitimate dumps of:
 ### System Requirements
 | Component | Minimum | Recommended |
 | :--- | :--- | :--- |
-| **Operating System** | Windows 10 (64-bit) / Windows 11 | Windows 11 (64-bit) |
-| **Processor** | x86-64 Dual-Core CPU with SSE2 | x86-64 Quad-Core CPU with AVX/AVX2 |
+| **Operating System** | Windows 10/11 (64-bit), Linux (glibc 2.35+ / SteamOS), Android 8.0+ | Windows 11 (64-bit) / SteamOS |
+| **Processor** | x86-64 Dual-Core CPU with SSE2 / ARM64 v8a | x86-64 Quad-Core CPU with AVX2 |
 | **Memory (RAM)** | 512 MB RAM | 2 GB RAM |
-| **Graphics** | Direct3D 9 / OpenGL 3.2+ compatible GPU | Direct3D 11 / Vulkan compatible GPU |
+| **Graphics** | Direct3D 11, OpenGL 3.2+, or Vulkan compatible GPU | Direct3D 11 / Vulkan |
 | **Storage** | 100 MB available space | 500 MB available space |
-| **Input Devices** | Keyboard | Xbox One / Series, DualSense, Switch Pro, or XInput/DirectInput gamepad |
+| **Input Devices** | Keyboard / Touchscreen | Xbox, PlayStation, Switch Pro, or XInput/DirectInput gamepad |
 
 ---
 
-## 2. First-Time Setup & Quick Start
+## 3. First-Time Setup & Quick Start
 
-1. Download the release package [`Mother3Recomp-v1.0.1-windows-x64.zip`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.1) and extract it anywhere on your PC.
+### Windows (PC)
+1. Download [`Mother3Recomp-v1.0.2-windows-x64.zip`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.2) and extract it anywhere on your PC.
 2. Run **`Play Mother 3.cmd`** or **`Mother3Recomp.exe`**.
-3. On first launch, the game boots directly into the **Launcher UI**:
+3. In the Launcher:
    - Click **Select GBA BIOS dump** and choose your `gba_bios.bin`.
    - Click **Select game ROM (.gba)** and choose your English-patched `MOTHER 3 (English v1.3).gba`.
    - *(Optional)* If using a clean Japanese ROM, tick **ROM patch** and select `mother3.ups`.
 4. Configure display and controller settings if desired, then click **Play**.
 
+### Linux & Steam Deck
+1. Download [`Mother3Recomp-v1.0.2-linux-x86_64.tar.gz`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.2) and extract it:
+   ```bash
+   tar -xzf Mother3Recomp-v1.0.2-linux-x86_64.tar.gz
+   cd Mother3Recomp-Linux
+   ```
+2. Place `gba_bios.bin` in `bios/` and your ROM in `roms/`.
+3. Make the launcher executable and run:
+   ```bash
+   chmod +x run_mother3.sh build_linux.sh
+   ./run_mother3.sh
+   ```
+4. *Steam Deck*: Add `run_mother3.sh` as a Non-Steam Game in Steam for full Game Mode handheld play!
+
+### Android
+1. Download [`Mother3Recomp-v1.0.2-android-arm64.apk`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.2) and install it on your device.
+2. Open the app; the `Mother3SetupActivity` will prompt you to select your `mother3_en.gba` and `gba_bios.bin` files.
+3. Once verified, the game launches natively with full touch and Bluetooth gamepad support!
+
 ---
 
-## 3. Controls & Hotkeys
+## 4. Controls & Hotkeys
 
 ### Gameplay Controls
 | Action | Keyboard | Controller (Xbox / PC) | DualShock / DualSense |
@@ -77,6 +115,7 @@ To play, you must provide your own legitimate dumps of:
 ### System Hotkeys
 | Hotkey | Action | Behavior |
 | :--- | :--- | :--- |
+| **`F10`** | **Toggle Bezel / Borders** | Toggles dynamically between the custom Sunset & Party Bezel and Clean Fullscreen (No Borders) mode. |
 | **`F11`** | **In-Game Overlay Menu** | Opens/closes the recomp overlay menu for settings, audio, and display adjustments without closing the game. |
 | **`Esc`** | **Instant Clean Exit** | Cleanly saves battery save data (SRAM/Flash) to disk and shuts down the game process immediately. |
 | **`F1`** | **Quick Save State** | Saves state to Slot 1 instantly without pausing gameplay. |
@@ -86,53 +125,24 @@ To play, you must provide your own legitimate dumps of:
 
 ---
 
-## 4. Visuals & Presentation
+## 5. Visuals & Presentation
 
+- **Clean Fullscreen & Border Options**: Press **`F10`** at any time to toggle borders off/on. In `config.ini`, set `bezel = 0` for borderless clean fullscreen by default or `bezel = 1` for the decorative border.
 - **1080p Sunset & Party Bezel**: Integrates official full-HD decorative border artwork featuring Lucas, Kumatora, Duster, Boney, sunflowers, and the Nowhere Islands sunset.
 - **3:2 Integer Scaling**: Maps the active GBA screen into a pixel-accurate 3:2 frame with hardware alpha blending and zero clipping of HUD elements or warning text.
 - **8-Way Analog Movement**: Full 360-degree analog stick translation mapped to GBA 8-directional movement with custom deadzone calibration.
-- **Windows Integration**: Includes official custom multi-resolution embedded application icon (`Mother 3.ico`).
 
 ---
 
-## 5. High-Quality Sound Mixing Mod (New in v1.0.1)
+## 6. High-Quality Sound Mixing Mod
 
-Mother3Recomp v1.0.1 natively supports and bundles the celebrated **[High-Quality Sound Mixing Mod for Mother 3 (Fan Translations)](https://www.romhacking.net/hacks/6951/)** by Summer Dragonfly & ipatix.
+Mother3Recomp natively supports and bundles the celebrated **[High-Quality Sound Mixing Mod for Mother 3 (Fan Translations)](https://www.romhacking.net/hacks/6951/)** by Summer Dragonfly & ipatix.
 
 - **How it works**: The original GBA hardware mixer mixes audio channels at 8-bit depth, producing the well-known "GBA hiss" and quantization noise. This hack replaces the mixer with 16-bit channel mixing before downsampling, giving Shogo Sakai's soundtrack crystal-clear audio clarity and fidelity.
 - **Included in `mods/High-Quality Sound Mixing/`**:
   - **`apply_hq_sound_mod.bat`**: An automated one-click patcher that detects your English v1.3 ROM and outputs the High-Quality Audio ROM instantly.
   - **`mother3_hq_sound_mixing.ups`**: Official UPS patch file for use with the built-in launcher or external tools like Tsukuyomi or Flips.
-- **Launcher Integration**: In the built-in launcher, you can choose your base English v1.3 ROM, select `mother3_hq_sound_mixing.ups` under **ROM Patch**, and play immediately.
-
----
-
-## 6. Building from Source
-
-### Prerequisites
-- Windows 10/11 x64 or Linux (Ubuntu 22.04+ / Debian / Fedora)
-- **CMake** 3.20+
-- **Ninja** build system
-- **GCC / MinGW-w64** 13+ (POSIX threads)
-- **TinyCC** (bundled for dynamic recompilation runtime)
-- **SDL2** 2.30+ development libraries
-
-### Compilation Steps (Windows cross-compilation or native MinGW)
-```bash
-# Clone the repository
-git clone https://github.com/josiahg2502-glitch/Mother3Recomp.git
-cd Mother3Recomp
-
-# Build the bezel interposer DLL
-cd interposer
-build_bezel.bat
-cd ..
-
-# Configure and compile with CMake
-cmake -S . -B build-win -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DGBARECOMP_STATIC_RELEASE=ON
-cmake --build build-win --target Mother3Recomp
-```
+- **Launcher Integration**: In the built-in launcher, choose your base English v1.3 ROM, select `mother3_hq_sound_mixing.ups` under **ROM Patch**, and play immediately.
 
 ---
 
@@ -144,11 +154,11 @@ A full, detailed breakdown of all contributors, authors, libraries, and tools is
 - **English Fan Translation**: The MOTHER 3 Fan Translation Team ([mother3.fobby.net](http://mother3.fobby.net/)) — Clyde "Tomato" Mandelin, Jeffman, Reid Young, and contributors.
 - **High-Quality Sound Mixing Mod**: Summer Dragonfly (@MusicTheorist) and ipatix ([Romhacking.net #6951](https://www.romhacking.net/hacks/6951/) / [MusicTheorist/MOTHER-3-HQ-Audio](https://github.com/MusicTheorist/MOTHER-3-HQ-Audio)), with foundational mixing code by Haruki "Bon" Kodera (Camelot) and decompilation support from Kurausukun & theo3.
 - **Recompilation Technology**: Powered by `gbarecomp` and `recomp-ui` by Matthew Stanley ([@mstan](https://github.com/mstan)), licensed under PolyForm Noncommercial 1.0.0.
+- **Android Port Lead**: **YlPorts** ([github.com/YlPorts/Mother3Recomp-Android](https://github.com/YlPorts/Mother3Recomp-Android)).
 - **Third-Party Libraries & Runtimes**:
   - **SDL2**: Sam Lantinga & the SDL Team (zlib license)
   - **Dear ImGui**: Omar Cornut (MIT license)
   - **TinyCC**: Fabrice Bellard (LGPL 2.1 license)
   - **MinGW-w64 / GCC**: The MinGW-w64 Project Team
-- **Patcher Tools & Formats**: Near / byuu for `xkas` and the `UPS` patch specification.
 
 *This repository is a non-commercial, open-source educational preservation project. No commercial ROMs, BIOS files, copyrighted game audio, or Nintendo proprietary code are distributed.*

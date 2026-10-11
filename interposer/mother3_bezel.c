@@ -66,6 +66,24 @@ static SDL_Renderer* g_last_renderer = NULL;
 static uint8_t* g_bezel_pixels = NULL;
 static int g_present_count = 0;
 
+static int g_bezel_enabled = 1;
+static int g_bezel_config_loaded = 0;
+
+static void load_bezel_config(void) {
+    if (g_bezel_config_loaded) return;
+    g_bezel_config_loaded = 1;
+    char exe_dir[MAX_PATH];
+    exe_dir[0] = '\0';
+    GetModuleFileNameA(NULL, exe_dir, MAX_PATH);
+    char* p = strrchr(exe_dir, '\\');
+    if (p) *p = '\0';
+    
+    char ini_path[MAX_PATH];
+    snprintf(ini_path, MAX_PATH, "%s\\config.ini", exe_dir);
+    int val = GetPrivateProfileIntA("Launcher", "bezel", 1, ini_path);
+    g_bezel_enabled = (val != 0);
+}
+
 static void log_hotkey(const char* msg) {
     if (!getenv("MOTHER3_DEBUG_HOTKEY")) return;
     FILE* f = fopen("hotkey.log", "a");
@@ -86,6 +104,17 @@ static int Hooked_SDL_PollEvent(void* ev_ptr) {
         uint32_t sym = (uint32_t)event->key.keysym.sym;
         uint32_t scancode = event->key.keysym.scancode;
 
+        // F10: Toggle decorative bezel border on/off (Clean Fullscreen mode)
+        if (sym == 0x40000043 || scancode == 67) {
+            if (event->type == 0x300) {
+                if (event->key.repeat == 0) {
+                    load_bezel_config();
+                    g_bezel_enabled = !g_bezel_enabled;
+                    log_hotkey(g_bezel_enabled ? "[HOTKEY] F10 pressed -> Bezel Borders Enabled" : "[HOTKEY] F10 pressed -> Clean Fullscreen (No Borders) Enabled");
+                }
+            }
+            return Hooked_SDL_PollEvent(ev_ptr);
+        }
         // F11: Open/toggle overlay menu (replaces Escape)
         if (sym == 0x40000044 || scancode == 68) {
             if (event->type == 0x300) {
@@ -213,7 +242,8 @@ static void load_bezel_pixels(void) {
 }
 
 static int Hooked_SDL_RenderCopy(SDL_Renderer* renderer, SDL_Texture* texture, const SDL_Rect* srcrect, const SDL_Rect* dstrect) {
-    if (texture != g_tex_bezel) {
+    load_bezel_config();
+    if (g_bezel_enabled && texture != g_tex_bezel) {
         int sw = 0, sh = 0;
         if (g_real_GetRendererOutputSize) g_real_GetRendererOutputSize(renderer, &sw, &sh);
         if (sw > 0 && sh > 0) {
@@ -230,49 +260,52 @@ static int Hooked_SDL_RenderCopy(SDL_Renderer* renderer, SDL_Texture* texture, c
 }
 
 void Hooked_SDL_RenderPresent(SDL_Renderer* renderer) {
+    load_bezel_config();
     if (renderer != g_last_renderer) {
         if (g_tex_bezel && g_real_DestroyTexture) g_real_DestroyTexture(g_tex_bezel);
         g_tex_bezel = NULL;
         g_last_renderer = renderer;
     }
     
-    if (!g_tex_bezel && g_real_CreateTexture && g_real_UpdateTexture) {
-        load_bezel_pixels();
-        if (g_bezel_pixels) {
-            // SDL_PIXELFORMAT_ABGR8888 (0x16762004): Byte 0 = R, Byte 1 = G, Byte 2 = B, Byte 3 = A
-            g_tex_bezel = g_real_CreateTexture(renderer, 0x16762004, 0, 1920, 1080);
-            if (g_tex_bezel) {
-                if (g_real_SetTextureBlendMode) {
-                    g_real_SetTextureBlendMode(g_tex_bezel, 1);
+    if (g_bezel_enabled) {
+        if (!g_tex_bezel && g_real_CreateTexture && g_real_UpdateTexture) {
+            load_bezel_pixels();
+            if (g_bezel_pixels) {
+                // SDL_PIXELFORMAT_ABGR8888 (0x16762004): Byte 0 = R, Byte 1 = G, Byte 2 = B, Byte 3 = A
+                g_tex_bezel = g_real_CreateTexture(renderer, 0x16762004, 0, 1920, 1080);
+                if (g_tex_bezel) {
+                    if (g_real_SetTextureBlendMode) {
+                        g_real_SetTextureBlendMode(g_tex_bezel, 1);
+                    }
+                    g_real_UpdateTexture(g_tex_bezel, NULL, g_bezel_pixels, 1920 * 4);
                 }
-                g_real_UpdateTexture(g_tex_bezel, NULL, g_bezel_pixels, 1920 * 4);
             }
         }
-    }
-    
-    if (g_real_GetRendererOutputSize && g_real_RenderCopy) {
-        int screen_w = 0, screen_h = 0;
-        g_real_GetRendererOutputSize(renderer, &screen_w, &screen_h);
         
-        if (screen_w > 0 && screen_h > 0) {
-            if (g_real_RenderSetViewport) g_real_RenderSetViewport(renderer, NULL);
-            if (g_real_RenderSetClipRect) g_real_RenderSetClipRect(renderer, NULL);
+        if (g_real_GetRendererOutputSize && g_real_RenderCopy) {
+            int screen_w = 0, screen_h = 0;
+            g_real_GetRendererOutputSize(renderer, &screen_w, &screen_h);
             
-            if (g_tex_bezel) {
-                g_real_RenderCopy(renderer, g_tex_bezel, NULL, NULL);
-            }
-            
-            if (getenv("MOTHER3_DEBUG_SNAPSHOT")) {
-                g_present_count++;
-                if (g_present_count == 120 && g_real_RenderReadPixels) {
-                    char snap_path[MAX_PATH];
-                    snprintf(snap_path, MAX_PATH, "bezel_new_live.bmp");
-                    uint8_t* cap_buf = (uint8_t*)malloc(screen_w * screen_h * 4);
-                    if (cap_buf) {
-                        if (g_real_RenderReadPixels(renderer, NULL, 0x16762004, cap_buf, screen_w * 4) == 0) {
-                            save_bmp32(snap_path, screen_w, screen_h, cap_buf);
+            if (screen_w > 0 && screen_h > 0) {
+                if (g_real_RenderSetViewport) g_real_RenderSetViewport(renderer, NULL);
+                if (g_real_RenderSetClipRect) g_real_RenderSetClipRect(renderer, NULL);
+                
+                if (g_tex_bezel) {
+                    g_real_RenderCopy(renderer, g_tex_bezel, NULL, NULL);
+                }
+                
+                if (getenv("MOTHER3_DEBUG_SNAPSHOT")) {
+                    g_present_count++;
+                    if (g_present_count == 120 && g_real_RenderReadPixels) {
+                        char snap_path[MAX_PATH];
+                        snprintf(snap_path, MAX_PATH, "bezel_new_live.bmp");
+                        uint8_t* cap_buf = (uint8_t*)malloc(screen_w * screen_h * 4);
+                        if (cap_buf) {
+                            if (g_real_RenderReadPixels(renderer, NULL, 0x16762004, cap_buf, screen_w * 4) == 0) {
+                                save_bmp32(snap_path, screen_w, screen_h, cap_buf);
+                            }
+                            free(cap_buf);
                         }
-                        free(cap_buf);
                     }
                 }
             }
