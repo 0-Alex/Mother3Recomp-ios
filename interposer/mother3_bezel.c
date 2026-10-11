@@ -316,6 +316,21 @@ __declspec(dllexport) int SDL_DYNAPI_entry(uint32_t apiver, void *table, uint32_
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
     if (fdwReason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(hinstDLL);
+        
+        // Dynamically ensure Mother3Recomp.exe accepts both vanilla English v1.3 and HQ Audio mod ROMs
+        HMODULE hHost = GetModuleHandleA(NULL);
+        if (hHost) {
+            uint8_t* pBase = (uint8_t*)hHost;
+            uint8_t* pCode = pBase + 0x37ca1e3;
+            if (pCode[0] == 0x75 && pCode[1] == 0x8b) {
+                DWORD oldProtect;
+                if (VirtualProtect(pCode, 2, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+                    pCode[0] = 0x90; // nop
+                    pCode[1] = 0x90; // nop
+                    VirtualProtect(pCode, 2, oldProtect, &oldProtect);
+                }
+            }
+        }
     }
     return TRUE;
 }

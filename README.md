@@ -1,6 +1,6 @@
-# MOTHER 3 Native PC Port (Recompilation) v1.0.0
+# MOTHER 3 Native PC Port (Recompilation) v1.0.1
 
-A native 64-bit Windows port of **MOTHER 3** featuring the official **MOTHER 3 Fan Translation v1.3 (English)**. 
+A native 64-bit Windows port of **MOTHER 3** featuring the official **MOTHER 3 Fan Translation v1.3 (English)** with native support for the **High-Quality 16-Bit Sound Mixing Mod**. 
 
 Unlike conventional emulation, this project statically recompiles the original Game Boy Advance ARM/Thumb machine code into native C++ instructions. The resulting binary executes natively on modern PC hardware with ultra-low latency, full analog movement, custom bezel framing, integer scaling, and instant save state controls.
 
@@ -28,7 +28,8 @@ Unlike conventional emulation, this project statically recompiles the original G
 ### Game & Asset Requirements
 To play, you must provide your own legitimate dumps of:
 1. **MOTHER 3 ROM (English Patched v1.3)**:
-   - **Pre-patched English ROM**: SHA-1: `306fb8874533b0fd0796208faa8bed2db4ae77fb`
+   - **Standard English v1.3**: SHA-1: `306fb8874533b0fd0796208faa8bed2db4ae77fb`
+   - **English v1.3 + High-Quality Sound Mixing**: SHA-1: `4ffe71ce5c5e1e8d9be5fbd09968b60787169b21`
    - *OR* **Clean Japanese ROM** (`A3UJ` / SHA-1: `4f0f493e12c2a8c61b2d809af03f7abf87a85776`) **+** the official `mother3.ups` patch file from the [MOTHER 3 Fan Translation website](http://mother3.fobby.net/). The built-in launcher includes an automatic UPS patcher that verifies and applies the patch on the fly without modifying your original file.
 2. **Game Boy Advance BIOS Dump**:
    - `gba_bios.bin` (16 KB retail dump / SHA-1: `300c20df6731a33952ded8c436f7f186d25d3492`).
@@ -47,7 +48,7 @@ To play, you must provide your own legitimate dumps of:
 
 ## 2. First-Time Setup & Quick Start
 
-1. Download the release package [`Mother3Recomp-v1.0.0-windows-x64.zip`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.0) and extract it anywhere on your PC.
+1. Download the release package [`Mother3Recomp-v1.0.1-windows-x64.zip`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.1) and extract it anywhere on your PC.
 2. Run **`Play Mother 3.cmd`** or **`Mother3Recomp.exe`**.
 3. On first launch, the game boots directly into the **Launcher UI**:
    - Click **Select GBA BIOS dump** and choose your `gba_bios.bin`.
@@ -94,7 +95,19 @@ To play, you must provide your own legitimate dumps of:
 
 ---
 
-## 5. Building from Source
+## 5. High-Quality Sound Mixing Mod (New in v1.0.1)
+
+Mother3Recomp v1.0.1 natively supports and bundles the celebrated **[High-Quality Sound Mixing Mod for Mother 3 (Fan Translations)](https://www.romhacking.net/hacks/6951/)** by Summer Dragonfly & ipatix.
+
+- **How it works**: The original GBA hardware mixer mixes audio channels at 8-bit depth, producing the well-known "GBA hiss" and quantization noise. This hack replaces the mixer with 16-bit channel mixing before downsampling, giving Shogo Sakai's soundtrack crystal-clear audio clarity and fidelity.
+- **Included in `mods/High-Quality Sound Mixing/`**:
+  - **`apply_hq_sound_mod.bat`**: An automated one-click patcher that detects your English v1.3 ROM and outputs the High-Quality Audio ROM instantly.
+  - **`mother3_hq_sound_mixing.ups`**: Official UPS patch file for use with the built-in launcher or external tools like Tsukuyomi or Flips.
+- **Launcher Integration**: In the built-in launcher, you can choose your base English v1.3 ROM, select `mother3_hq_sound_mixing.ups` under **ROM Patch**, and play immediately.
+
+---
+
+## 6. Building from Source
 
 ### Prerequisites
 - Windows 10/11 x64 or Linux (Ubuntu 22.04+ / Debian / Fedora)
@@ -123,10 +136,11 @@ cmake --build build-win --target Mother3Recomp
 
 ---
 
-## 6. Credits & Disclaimers
+## 7. Credits & Disclaimers
 
 - **MOTHER 3** © 2006 Nintendo / SHIGESATO ITOI / Brownie Brown / HAL Laboratory, Inc.
 - **English Fan Translation**: MOTHER 3 Fan Translation Team ([mother3.fobby.net](http://mother3.fobby.net/)). Please support official releases and merchandise.
+- **High-Quality Sound Mixing Mod**: Summer Dragonfly and ipatix ([Romhacking.net #6951](https://www.romhacking.net/hacks/6951/) / [MusicTheorist](https://github.com/MusicTheorist/MOTHER-3-HQ-Audio)).
 - **Recompilation Technology**: Powered by `gbarecomp` and `recomp-ui` by Matthew Stanley ([mstan](https://github.com/mstan)), licensed under PolyForm Noncommercial 1.0.0.
 - **Third-Party Libraries**: SDL2 (zlib), TinyCC (LGPL), Dear ImGui (MIT).
 

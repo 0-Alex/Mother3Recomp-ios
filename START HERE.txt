@@ -1,4 +1,4 @@
-Mother 3 Recomp (English) - Windows x64 v1.0.0
+Mother 3 Recomp (English) - Windows x64 v1.0.1
 ==============================================
 
 1. Run "Play Mother 3.cmd" or "Mother3Recomp.exe".
@@ -6,9 +6,14 @@ Mother 3 Recomp (English) - Windows x64 v1.0.0
      - Choose your GBA BIOS (gba_bios.bin, 16 KB retail dump).
      - Choose your ROM:
          * An English MOTHER 3 Fan Translation v1.3 ROM (.gba), OR
+         * An English v1.3 ROM with the High-Quality Sound Mixing Mod, OR
          * A clean Japanese MOTHER 3 ROM, then enable "ROM patch" and select
            mother3.ups from the official v1.3 fan translation download.
-3. Configure display/audio/controls if desired, then click "Play".
+3. High-Quality Sound Mixing Mod (New in v1.0.1):
+     - Located in "mods/High-Quality Sound Mixing/".
+     - Double-click "apply_hq_sound_mod.bat" to automatically patch your
+       English v1.3 ROM with 16-bit sound mixing, or apply the included .ups patch.
+4. Configure display/audio/controls if desired, then click "Play".
 
 Controls (Defaults):
 - Keyboard:

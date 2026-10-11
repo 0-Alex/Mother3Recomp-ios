@@ -13,15 +13,15 @@ GBA hardware runtime and its [recomp-ui](https://github.com/mstan/recomp-ui) lau
 ## What you need
 
 - A **ROM**, either one of:
-  - the English **MOTHER 3 Fan Translation v1.3** ROM (SHA-1 `306fb8874533b0fd0796208faa8bed2db4ae77fb`), or
+  - the English **MOTHER 3 Fan Translation v1.3** ROM (SHA-1 `306fb8874533b0fd0796208faa8bed2db4ae77fb`),
+  - the English **MOTHER 3 v1.3 + High-Quality Sound Mixing** ROM (SHA-1 `4ffe71ce5c5e1e8d9be5fbd09968b60787169b21`), or
   - a clean **MOTHER 3 (Japan)** ROM (SHA-1 `4f0f493e12c2a8c61b2d809af03f7abf87a85776`) **plus** `mother3.ups`
     from the official v1.3 translation download. Turn on **ROM patch** in the launcher and choose the
     `.ups` file. The launcher applies it to a cached copy, leaves your files untouched, and only accepts
     the result if it matches English v1.3 exactly.
 - A **GBA BIOS** dump, `gba_bios.bin` (SHA-1 `300c20df6731a33952ded8c436f7f186d25d3492`).
 
-The port always runs the English translation. The recompiled code was generated from the
-English v1.3 image, so other versions or other hacks are refused.
+The port supports both the authentic audio mix and the 16-bit High-Quality Sound Mixing mod (bundled in `mods/`).
 
 ## Features
 
