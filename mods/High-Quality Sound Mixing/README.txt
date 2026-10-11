@@ -22,17 +22,25 @@ Option 1 (One-Click Automatic Patcher - Recommended):
   1. Make sure your "MOTHER 3 (English v1.3).gba" ROM is placed in the "roms" folder
      (or drag and drop your .gba file directly onto "apply_hq_sound_mod.bat").
   2. Double-click "apply_hq_sound_mod.bat".
-  3. The patched ROM "MOTHER 3 (English v1.3) (HQ Audio).gba" will be generated!
+  3. The patched ROM "MOTHER 3 (English v1.3) (HQ Audio).gba" will be created and
+     your config will automatically be set to boot it.
+  4. Double-click "Play Mother 3.cmd" to start playing immediately with 16-bit HQ audio!
 
-Option 2 (Via Mother3Recomp Built-in Launcher):
-  1. Launch "Play Mother 3.cmd" or "Mother3Recomp.exe".
-  2. In the Launcher screen, select your English v1.3 ROM.
-  3. Under "ROM Patch", browse and select "mother3_hq_sound_mixing.ups".
-  4. Click "Play". The launcher automatically applies the patch on the fly!
+Option 2 (Manual / External Patchers):
+  1. Apply "mother3_hq_sound_mixing.ups" to your clean English v1.3 ROM using
+     any standard UPS patcher (such as Tsukuyomi or Floating IPS / Flips).
+  2. Place the resulting patched ROM into the "roms" folder.
+  3. In "rom.cfg", put the path to your patched ROM file.
+  4. In "config.ini", ensure "skip_launcher = 1" is set under [Launcher].
+  5. Run "Play Mother 3.cmd" (or Mother3Recomp.exe).
 
-Option 3 (External Patchers):
-  You can also apply "mother3_hq_sound_mixing.ups" using standard UPS patchers
-  such as Tsukuyomi or Floating IPS (Flips).
+IMPORTANT NOTE ABOUT THE BUILT-IN LAUNCHER:
+-------------------------------------------
+The launcher's "ROM Patch" checkbox is designed ONLY for applying the official
+fan translation patch ("mother3.ups") to a clean Japanese cartridge. It checks
+that the output matches the vanilla English v1.3 hash.
+Do NOT select "mother3_hq_sound_mixing.ups" in the launcher's "ROM Patch" field,
+as the launcher will reject the modified audio hash. Use Option 1 or 2 above instead!
 
 Compatibility & Hashes:
 -----------------------

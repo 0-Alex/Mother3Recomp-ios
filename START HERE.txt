@@ -24,9 +24,8 @@ What's New in v1.0.2:
 
 2. High-Quality Sound Mixing Mod:
    - Located in "mods/High-Quality Sound Mixing/".
-   - Double-click "apply_hq_sound_mod.bat" (or run the .ps1 script) to automatically
-     patch your English v1.3 ROM with 16-bit sound mixing, or select
-     mother3_hq_sound_mixing.ups directly in the launcher.
+   - Double-click "apply_hq_sound_mod.bat" to automatically patch your English v1.3
+     ROM with 16-bit sound mixing and configure the game to launch it instantly!
 
 3. Controls (Defaults):
 - Keyboard:

@@ -140,9 +140,9 @@ Mother3Recomp natively supports and bundles the celebrated **[High-Quality Sound
 
 - **How it works**: The original GBA hardware mixer mixes audio channels at 8-bit depth, producing the well-known "GBA hiss" and quantization noise. This hack replaces the mixer with 16-bit channel mixing before downsampling, giving Shogo Sakai's soundtrack crystal-clear audio clarity and fidelity.
 - **Included in `mods/High-Quality Sound Mixing/`**:
-  - **`apply_hq_sound_mod.bat`**: An automated one-click patcher that detects your English v1.3 ROM and outputs the High-Quality Audio ROM instantly.
-  - **`mother3_hq_sound_mixing.ups`**: Official UPS patch file for use with the built-in launcher or external tools like Tsukuyomi or Flips.
-- **Launcher Integration**: In the built-in launcher, choose your base English v1.3 ROM, select `mother3_hq_sound_mixing.ups` under **ROM Patch**, and play immediately.
+  - **`apply_hq_sound_mod.bat`**: An automated one-click patcher that detects your English v1.3 ROM, generates the High-Quality Audio ROM, and automatically configures the game to boot it.
+  - **`mother3_hq_sound_mixing.ups`**: Official UPS patch file for use with external tools like Tsukuyomi or Flips.
+- **Easy Play**: Simply run `apply_hq_sound_mod.bat` and click `Play Mother 3.cmd`! *(Note: The built-in launcher's "ROM Patch" checkbox is reserved for the fan translation patch on a clean Japanese cartridge; use the automated patcher script for the audio mod).*
 
 ---
 

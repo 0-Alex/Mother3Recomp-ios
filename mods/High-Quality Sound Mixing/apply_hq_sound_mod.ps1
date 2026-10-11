@@ -4,15 +4,20 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$GameRoot = Split-Path (Split-Path $ScriptDir -Parent) -Parent
+
 if (-not $RomPath) {
     $candidates = @(
         ".\MOTHER 3 (English v1.3).gba",
-        "..\roms\MOTHER 3 (English v1.3).gba",
-        "..\roms\mother3_en_v13.gba",
-        ".\mother3_en_v13.gba"
+        ".\mother3_en_v13.gba",
+        "..\..\roms\MOTHER 3 (English v1.3).gba",
+        "..\..\roms\mother3_en_v13.gba",
+        (Join-Path $GameRoot "roms\MOTHER 3 (English v1.3).gba"),
+        (Join-Path $GameRoot "roms\mother3_en_v13.gba")
     )
     foreach ($c in $candidates) {
-        if (Test-Path $c) {
+        if ($c -and (Test-Path $c)) {
             $RomPath = (Resolve-Path $c).Path
             break
         }
@@ -93,3 +98,28 @@ Write-Host " SUCCESS: High-Quality Sound Mixing Mod Applied!" -ForegroundColor G
 Write-Host " Output ROM: $OutPath" -ForegroundColor Green
 Write-Host " SHA-1:      $h" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green
+
+# Automatically configure Mother3Recomp to use the new HQ Audio ROM
+$GameRoot = Split-Path (Split-Path $ScriptDir -Parent) -Parent
+$RomCfg = Join-Path $GameRoot "rom.cfg"
+$ConfigIni = Join-Path $GameRoot "config.ini"
+
+if (Test-Path $GameRoot) {
+    Set-Content -Path $RomCfg -Value $OutPath -Encoding ASCII
+    Write-Host ""
+    Write-Host " [Auto-Config] Updated rom.cfg to point to HQ Audio ROM." -ForegroundColor Cyan
+
+    if (Test-Path $ConfigIni) {
+        $iniContent = Get-Content $ConfigIni -Raw
+        if ($iniContent -match "skip_launcher\s*=\s*\d+") {
+            $iniContent = $iniContent -replace "skip_launcher\s*=\s*\d+", "skip_launcher = 1"
+        } else {
+            $iniContent = $iniContent -replace "\[Launcher\]", "[Launcher]`r`nskip_launcher = 1"
+        }
+        Set-Content -Path $ConfigIni -Value $iniContent -Encoding ASCII
+        Write-Host " [Auto-Config] Set skip_launcher = 1 in config.ini." -ForegroundColor Cyan
+    }
+    Write-Host ""
+    Write-Host " Setup complete! Double-click 'Play Mother 3.cmd' to start playing with HQ Audio!" -ForegroundColor Yellow
+    Write-Host ""
+}
