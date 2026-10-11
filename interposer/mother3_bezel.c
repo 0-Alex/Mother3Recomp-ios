@@ -48,6 +48,8 @@ typedef union {
 } SDL_Event_t;
 
 typedef int (*pfn_SDL_PollEvent)(void* event);
+typedef int (*pfn_SDL_WaitEvent)(void* event);
+typedef int (*pfn_SDL_WaitEventTimeout)(void* event, int timeout);
 
 static pfn_SDL_RenderPresent g_real_RenderPresent = NULL;
 static pfn_SDL_RenderCopy g_real_RenderCopy = NULL;
@@ -60,6 +62,8 @@ static pfn_SDL_RenderSetClipRect g_real_RenderSetClipRect = NULL;
 static pfn_SDL_RenderReadPixels g_real_RenderReadPixels = NULL;
 static pfn_SDL_SetTextureBlendMode g_real_SetTextureBlendMode = NULL;
 static pfn_SDL_PollEvent g_real_PollEvent = NULL;
+static pfn_SDL_WaitEvent g_real_WaitEvent = NULL;
+static pfn_SDL_WaitEventTimeout g_real_WaitEventTimeout = NULL;
 
 static SDL_Texture* g_tex_bezel = NULL;
 static SDL_Renderer* g_last_renderer = NULL;
@@ -189,6 +193,10 @@ static void load_gamepad_config(void) {
     OVERRIDE_BTN("select", 4);
     OVERRIDE_BTN("back", 4);
     OVERRIDE_BTN("start", 6);
+    OVERRIDE_BTN("up", 11);
+    OVERRIDE_BTN("down", 12);
+    OVERRIDE_BTN("left", 13);
+    OVERRIDE_BTN("right", 14);
     #undef OVERRIDE_BTN
 
     char trig_l[32], trig_r[32];
@@ -205,14 +213,238 @@ static void load_gamepad_config(void) {
     log_hotkey(log_buf);
 }
 
-static int Hooked_SDL_PollEvent(void* ev_ptr) {
-    if (!g_real_PollEvent) return 0;
-    int res = g_real_PollEvent(ev_ptr);
-    if (!res || !ev_ptr) return res;
+static const uint8_t s_capture_to_gba[12] = {
+    0,   // 0: A
+    1,   // 1: B
+    1,   // 2: X -> B (Dash)
+    0,   // 3: Y -> A (Confirm)
+    9,   // 4: L (LB)
+    10,  // 5: R (RB)
+    6,   // 6: Start
+    4,   // 7: Select (Back)
+    11,  // 8: Up
+    12,  // 9: Down
+    13,  // 10: Left
+    14   // 11: Right
+};
 
-    load_gamepad_config();
+static const char* target_to_str(uint8_t target) {
+    switch (target) {
+        case 0: return "a";
+        case 1: return "b";
+        case 2: return "x";
+        case 3: return "y";
+        case 4: return "select";
+        case 6: return "start";
+        case 9: return "l";
+        case 10: return "r";
+        case 11: return "up";
+        case 12: return "down";
+        case 13: return "left";
+        case 14: return "right";
+        case 255: return "none";
+        default: return "none";
+    }
+}
+
+static void save_gamepad_config(void) {
+    char exe_dir[MAX_PATH];
+    exe_dir[0] = '\0';
+    GetModuleFileNameA(NULL, exe_dir, MAX_PATH);
+    char* p = strrchr(exe_dir, '\\');
+    if (p) *p = '\0';
+
+    char ini_path[MAX_PATH];
+    snprintf(ini_path, MAX_PATH, "%s\\keybinds.ini", exe_dir);
+
+    WritePrivateProfileStringA("gamepad1", "a", target_to_str(g_btn_map[0]), ini_path);
+    WritePrivateProfileStringA("gamepad1", "b", target_to_str(g_btn_map[1]), ini_path);
+    WritePrivateProfileStringA("gamepad1", "x", target_to_str(g_btn_map[2]), ini_path);
+    WritePrivateProfileStringA("gamepad1", "y", target_to_str(g_btn_map[3]), ini_path);
+    WritePrivateProfileStringA("gamepad1", "lb", target_to_str(g_btn_map[9]), ini_path);
+    WritePrivateProfileStringA("gamepad1", "rb", target_to_str(g_btn_map[10]), ini_path);
+    WritePrivateProfileStringA("gamepad1", "select", target_to_str(g_btn_map[4]), ini_path);
+    WritePrivateProfileStringA("gamepad1", "start", target_to_str(g_btn_map[6]), ini_path);
+    WritePrivateProfileStringA("gamepad1", "up", target_to_str(g_btn_map[11]), ini_path);
+    WritePrivateProfileStringA("gamepad1", "down", target_to_str(g_btn_map[12]), ini_path);
+    WritePrivateProfileStringA("gamepad1", "left", target_to_str(g_btn_map[13]), ini_path);
+    WritePrivateProfileStringA("gamepad1", "right", target_to_str(g_btn_map[14]), ini_path);
+
+    if (g_trigger_l_target >= 0) {
+        WritePrivateProfileStringA("gamepad1", "trigger_l", target_to_str((uint8_t)g_trigger_l_target), ini_path);
+    } else {
+        WritePrivateProfileStringA("gamepad1", "trigger_l", "none", ini_path);
+    }
+    if (g_trigger_r_target >= 0) {
+        WritePrivateProfileStringA("gamepad1", "trigger_r", target_to_str((uint8_t)g_trigger_r_target), ini_path);
+    } else {
+        WritePrivateProfileStringA("gamepad1", "trigger_r", "none", ini_path);
+    }
+
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (GetFileAttributesExA(ini_path, GetFileExInfoStandard, &fad)) {
+        g_last_keybinds_time = fad.ftLastWriteTime;
+    }
+
+    log_hotkey("[GAMEPAD] Saved custom bindings to keybinds.ini [gamepad1]");
+}
+
+static void* g_active_launcher_model = NULL;
+static int g_active_capture_btn = -1;
+
+void Hooked_launcher_model_begin_capture(void* m, int b) {
+    if (!m || b > 11) return;
+    g_active_launcher_model = m;
+    g_active_capture_btn = b;
+
+    uint8_t* pm = (uint8_t*)m;
+    pm[0xc1a8] = 0;
+    pm[0xc1b4] = 0;
+    pm[0xc1c5] = 0;
+    pm[0xc1bd] = 1;
+    *(uint32_t*)(pm + 0xc1c0) = (uint32_t)b;
+
+    char log[128];
+    snprintf(log, sizeof(log), "[LAUNCHER] Capture started for button index %d", b);
+    log_hotkey(log);
+}
+
+static void install_launcher_capture_hook(uint8_t* pBase) {
+    uint8_t* pTarget = pBase + 0x3a48710;
+    if (pTarget[0] == 0x48 && pTarget[1] == 0x85 && pTarget[2] == 0xc9 && pTarget[3] == 0x74 && pTarget[4] == 0x27) {
+        DWORD oldProtect;
+        if (VirtualProtect(pTarget, 14, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            pTarget[0] = 0xFF;
+            pTarget[1] = 0x25;
+            pTarget[2] = 0x00;
+            pTarget[3] = 0x00;
+            pTarget[4] = 0x00;
+            pTarget[5] = 0x00;
+            *(uint64_t*)(pTarget + 6) = (uint64_t)(uintptr_t)Hooked_launcher_model_begin_capture;
+            VirtualProtect(pTarget, 14, oldProtect, &oldProtect);
+            log_hotkey("[LAUNCHER] Hooked launcher_model_begin_capture successfully");
+        }
+    }
+}
+
+static int Hooked_SDL_PollEvent(void* ev_ptr);
+static int Hooked_SDL_WaitEvent(void* ev_ptr);
+static int Hooked_SDL_WaitEventTimeout(void* ev_ptr, int timeout);
+
+static int fetch_next_event(void* ev_ptr, int call_type, int timeout) {
+    if (call_type == 1) return Hooked_SDL_WaitEvent(ev_ptr);
+    if (call_type == 2) return Hooked_SDL_WaitEventTimeout(ev_ptr, timeout);
+    return Hooked_SDL_PollEvent(ev_ptr);
+}
+
+static int handle_sdl_event_interception(void* ev_ptr, int call_type, int timeout) {
+    if (!ev_ptr) return 0;
 
     SDL_Event_t* event = (SDL_Event_t*)ev_ptr;
+
+    // Check if launcher is currently capturing a keybind
+    int is_capturing = 0;
+    if (g_active_launcher_model) {
+        uint8_t* pm = (uint8_t*)g_active_launcher_model;
+        if (pm[0xc1bd] == 1) {
+            is_capturing = 1;
+        }
+    }
+
+    if (is_capturing) {
+        // Drop button releases while in capture mode
+        if (event->type == 0x652 || event->type == 0x604) {
+            return 0;
+        }
+
+        int is_pad_press = 0;
+        uint8_t pad_btn = 255;
+        int is_trigger = 0;
+        int trigger_axis = 0;
+
+        if (event->type == 0x651 || event->type == 0x603) {
+            is_pad_press = 1;
+            pad_btn = *((uint8_t*)ev_ptr + 12);
+        } else if (event->type == 0x650) {
+            uint8_t axis = *((uint8_t*)ev_ptr + 12);
+            int16_t value = *((int16_t*)((uint8_t*)ev_ptr + 16));
+            if ((axis == 4 || axis == 5) && value > 16000) {
+                is_pad_press = 1;
+                is_trigger = 1;
+                trigger_axis = axis;
+            } else {
+                return 0;
+            }
+        }
+
+        if (is_pad_press) {
+            int btn_idx = g_active_capture_btn;
+            if (btn_idx < 0 || btn_idx > 11) {
+                btn_idx = (int)*(uint32_t*)(((uint8_t*)g_active_launcher_model) + 0xc1c0);
+            }
+            if (btn_idx < 0 || btn_idx > 11) btn_idx = 0;
+
+            uint8_t gba_action = s_capture_to_gba[btn_idx];
+
+            int32_t scancode = 4;
+            int32_t sym = 'a';
+
+            if (is_trigger) {
+                if (trigger_axis == 4) {
+                    g_trigger_l_target = gba_action;
+                    scancode = 20; // SDL_SCANCODE_Q
+                    sym = 'q';
+                } else {
+                    g_trigger_r_target = gba_action;
+                    scancode = 8;  // SDL_SCANCODE_E
+                    sym = 'e';
+                }
+            } else {
+                if (pad_btn < 15) {
+                    g_btn_map[pad_btn] = gba_action;
+                }
+                switch (pad_btn) {
+                    case 0:  scancode = 4;   sym = 'a'; break; // A
+                    case 1:  scancode = 5;   sym = 'b'; break; // B
+                    case 2:  scancode = 27;  sym = 'x'; break; // X
+                    case 3:  scancode = 28;  sym = 'y'; break; // Y
+                    case 4:  scancode = 229; sym = 1073742053; break; // Back -> Right Shift
+                    case 5:  scancode = 229; sym = 1073742053; break; // Guide
+                    case 6:  scancode = 40;  sym = '\r'; break; // Start -> Return
+                    case 7:  scancode = 43;  sym = '\t'; break; // L3 -> Tab
+                    case 8:  scancode = 44;  sym = ' '; break;  // R3 -> Space
+                    case 9:  scancode = 15;  sym = 'l'; break; // LB -> L
+                    case 10: scancode = 21;  sym = 'r'; break; // RB -> R
+                    case 11: scancode = 82;  sym = 1073741906; break; // Up
+                    case 12: scancode = 81;  sym = 1073741905; break; // Down
+                    case 13: scancode = 80;  sym = 1073741904; break; // Left
+                    case 14: scancode = 79;  sym = 1073741903; break; // Right
+                    default: scancode = 4;   sym = 'a'; break;
+                }
+            }
+
+            save_gamepad_config();
+
+            // Synthesize SDL_KEYDOWN into ev_ptr for launcher try_capture
+            memset(ev_ptr, 0, 56);
+            *(uint32_t*)((uint8_t*)ev_ptr + 0) = 0x300; // SDL_KEYDOWN
+            *(uint32_t*)((uint8_t*)ev_ptr + 4) = GetTickCount();
+            *((uint8_t*)ev_ptr + 12) = 1; // state = pressed
+            *((uint8_t*)ev_ptr + 13) = 0; // repeat = 0
+            *(int32_t*)((uint8_t*)ev_ptr + 16) = scancode; // scancode
+            *(int32_t*)((uint8_t*)ev_ptr + 20) = sym;      // sym
+
+            char log_buf[128];
+            snprintf(log_buf, sizeof(log_buf),
+                "[LAUNCHER] Controller captured btn_idx=%d (GBA %d) -> scancode=%d, sym=%d",
+                btn_idx, gba_action, scancode, sym);
+            log_hotkey(log_buf);
+
+            return 1;
+        }
+    }
+
+    load_gamepad_config();
 
     // Gamepad button remapping: SDL_CONTROLLERBUTTONDOWN (0x651) or SDL_CONTROLLERBUTTONUP (0x652)
     if (event->type == 0x651 || event->type == 0x652) {
@@ -220,8 +452,7 @@ static int Hooked_SDL_PollEvent(void* ev_ptr) {
         if (*pBtn < 15) {
             uint8_t target = g_btn_map[*pBtn];
             if (target == 255) {
-                // Drop unbound button
-                return Hooked_SDL_PollEvent(ev_ptr);
+                return fetch_next_event(ev_ptr, call_type, timeout);
             }
             *pBtn = target;
         }
@@ -232,7 +463,7 @@ static int Hooked_SDL_PollEvent(void* ev_ptr) {
         if (*pBtn < 15) {
             uint8_t target = g_btn_map[*pBtn];
             if (target == 255) {
-                return Hooked_SDL_PollEvent(ev_ptr);
+                return fetch_next_event(ev_ptr, call_type, timeout);
             }
             *pBtn = target;
         }
@@ -282,13 +513,13 @@ static int Hooked_SDL_PollEvent(void* ev_ptr) {
                     log_hotkey(g_bezel_enabled ? "[HOTKEY] F10 pressed -> Bezel Borders Enabled" : "[HOTKEY] F10 pressed -> Clean Fullscreen (No Borders) Enabled");
                 }
             }
-            return Hooked_SDL_PollEvent(ev_ptr);
+            return fetch_next_event(ev_ptr, call_type, timeout);
         }
         // F11: Open/toggle overlay menu (replaces Escape)
         if (sym == 0x40000044 || scancode == 68) {
             if (event->type == 0x300) {
                 if (event->key.repeat != 0) {
-                    return Hooked_SDL_PollEvent(ev_ptr);
+                    return fetch_next_event(ev_ptr, call_type, timeout);
                 }
                 log_hotkey("[HOTKEY] F11 pressed -> translated to Escape (overlay menu toggle)");
             }
@@ -303,14 +534,14 @@ static int Hooked_SDL_PollEvent(void* ev_ptr) {
                 event->type = 0x100; // SDL_QUIT
             } else {
                 // Drop KEYUP for Esc
-                return Hooked_SDL_PollEvent(ev_ptr);
+                return fetch_next_event(ev_ptr, call_type, timeout);
             }
         }
         // F1: Save state (Slot 1)
         else if (sym == 0x4000003a || scancode == 58) {
             if (event->type == 0x300) {
                 if (event->key.repeat != 0) {
-                    return Hooked_SDL_PollEvent(ev_ptr);
+                    return fetch_next_event(ev_ptr, call_type, timeout);
                 }
                 log_hotkey("[HOTKEY] F1 pressed -> forced Shift (save state slot 1)");
             }
@@ -322,7 +553,7 @@ static int Hooked_SDL_PollEvent(void* ev_ptr) {
         else if (sym == 0x4000003b || scancode == 59) {
             if (event->type == 0x300) {
                 if (event->key.repeat != 0) {
-                    return Hooked_SDL_PollEvent(ev_ptr);
+                    return fetch_next_event(ev_ptr, call_type, timeout);
                 }
                 log_hotkey("[HOTKEY] F2 pressed -> translated to F1 without Shift (load state slot 1)");
             }
@@ -332,7 +563,28 @@ static int Hooked_SDL_PollEvent(void* ev_ptr) {
         }
     }
 
-    return res;
+    return 1;
+}
+
+static int Hooked_SDL_PollEvent(void* ev_ptr) {
+    if (!g_real_PollEvent) return 0;
+    int res = g_real_PollEvent(ev_ptr);
+    if (!res || !ev_ptr) return res;
+    return handle_sdl_event_interception(ev_ptr, 0, 0);
+}
+
+static int Hooked_SDL_WaitEvent(void* ev_ptr) {
+    if (!g_real_WaitEvent) return 0;
+    int res = g_real_WaitEvent(ev_ptr);
+    if (!res || !ev_ptr) return res;
+    return handle_sdl_event_interception(ev_ptr, 1, 0);
+}
+
+static int Hooked_SDL_WaitEventTimeout(void* ev_ptr, int timeout) {
+    if (!g_real_WaitEventTimeout) return 0;
+    int res = g_real_WaitEventTimeout(ev_ptr, timeout);
+    if (!res || !ev_ptr) return res;
+    return handle_sdl_event_interception(ev_ptr, 2, timeout);
 }
 
 static void save_bmp32(const char* filename, int w, int h, const uint8_t* rgba_pixels) {
@@ -506,12 +758,16 @@ __declspec(dllexport) int SDL_DYNAPI_entry(uint32_t apiver, void *table, uint32_
     g_real_RenderReadPixels = (pfn_SDL_RenderReadPixels)ptable[308];
     g_real_SetTextureBlendMode = (pfn_SDL_SetTextureBlendMode)ptable[276];
     g_real_PollEvent = (pfn_SDL_PollEvent)ptable[85];
+    g_real_WaitEvent = (pfn_SDL_WaitEvent)ptable[86];
+    g_real_WaitEventTimeout = (pfn_SDL_WaitEventTimeout)ptable[87];
     
     ptable[309] = (void*)Hooked_SDL_RenderPresent;
     ptable[306] = (void*)Hooked_SDL_RenderCopy;
     ptable[85] = (void*)Hooked_SDL_PollEvent;
+    ptable[86] = (void*)Hooked_SDL_WaitEvent;
+    ptable[87] = (void*)Hooked_SDL_WaitEventTimeout;
     
-    log_hotkey("[BEZEL] SDL_DYNAPI_entry initialized and hooked SDL_PollEvent");
+    log_hotkey("[BEZEL] SDL_DYNAPI_entry initialized and hooked SDL_PollEvent, SDL_WaitEvent, SDL_WaitEventTimeout");
     return 0;
 }
 
@@ -532,6 +788,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
                     VirtualProtect(pCode, 2, oldProtect, &oldProtect);
                 }
             }
+
+            // Install hook on launcher_model_begin_capture
+            install_launcher_capture_hook(pBase);
         }
     }
     return TRUE;
