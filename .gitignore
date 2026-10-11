@@ -24,8 +24,12 @@ release-stage/
 *.dll
 *.o
 *.obj
+*.def
 *.bak*
 _to_delete/
+
+# Toolchain exception
+!overlay_toolchain/**
 
 # OS & IDE files
 .DS_Store

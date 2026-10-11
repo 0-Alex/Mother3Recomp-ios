@@ -68,7 +68,7 @@ static int g_present_count = 0;
 
 static void log_hotkey(const char* msg) {
     if (!getenv("MOTHER3_DEBUG_HOTKEY")) return;
-    FILE* f = fopen("C:\\Users\\josia\\Desktop\\Recomps\\Mother 3\\hotkey.log", "a");
+    FILE* f = fopen("hotkey.log", "a");
     if (f) {
         fprintf(f, "%s\n", msg);
         fclose(f);
@@ -189,8 +189,6 @@ static void load_bezel_pixels(void) {
     
     const char* candidate_dirs[] = {
         exe_dir,
-        "C:\\Users\\josia\\Desktop\\Recomps\\Mother 3",
-        "C:\\Users\\josia\\Desktop",
         "assets\\img",
         "."
     };
@@ -268,7 +266,7 @@ void Hooked_SDL_RenderPresent(SDL_Renderer* renderer) {
                 g_present_count++;
                 if (g_present_count == 120 && g_real_RenderReadPixels) {
                     char snap_path[MAX_PATH];
-                    snprintf(snap_path, MAX_PATH, "C:\\Users\\josia\\Desktop\\Recomps\\Mother 3\\bezel_new_live.bmp");
+                    snprintf(snap_path, MAX_PATH, "bezel_new_live.bmp");
                     uint8_t* cap_buf = (uint8_t*)malloc(screen_w * screen_h * 4);
                     if (cap_buf) {
                         if (g_real_RenderReadPixels(renderer, NULL, 0x16762004, cap_buf, screen_w * 4) == 0) {
