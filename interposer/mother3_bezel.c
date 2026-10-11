@@ -93,14 +93,183 @@ static void log_hotkey(const char* msg) {
     }
 }
 
+static int g_gamepad_config_loaded = 0;
+static FILETIME g_last_keybinds_time = {0, 0};
+static uint8_t g_btn_map[15] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};
+static int g_trigger_l_target = 9;   // Default: LB (button 9)
+static int g_trigger_r_target = 10;  // Default: RB (button 10)
+static int g_lt_active = 0;
+static int g_rt_active = 0;
+
+static uint8_t parse_btn_target(const char* name, uint8_t def) {
+    if (!_stricmp(name, "none") || !_stricmp(name, "unbound") || !_stricmp(name, "off")) return 255;
+    if (!_stricmp(name, "a")) return 0;
+    if (!_stricmp(name, "b")) return 1;
+    if (!_stricmp(name, "x")) return 2;
+    if (!_stricmp(name, "y")) return 3;
+    if (!_stricmp(name, "back") || !_stricmp(name, "select")) return 4;
+    if (!_stricmp(name, "guide")) return 5;
+    if (!_stricmp(name, "start")) return 6;
+    if (!_stricmp(name, "l3") || !_stricmp(name, "leftstick")) return 7;
+    if (!_stricmp(name, "r3") || !_stricmp(name, "rightstick")) return 8;
+    if (!_stricmp(name, "l") || !_stricmp(name, "lb") || !_stricmp(name, "leftshoulder")) return 9;
+    if (!_stricmp(name, "r") || !_stricmp(name, "rb") || !_stricmp(name, "rightshoulder")) return 10;
+    if (!_stricmp(name, "up") || !_stricmp(name, "dpup")) return 11;
+    if (!_stricmp(name, "down") || !_stricmp(name, "dpdown")) return 12;
+    if (!_stricmp(name, "left") || !_stricmp(name, "dpleft")) return 13;
+    if (!_stricmp(name, "right") || !_stricmp(name, "dpright")) return 14;
+    return def;
+}
+
+static int parse_trigger_target(const char* val, int def_target) {
+    if (!_stricmp(val, "false") || !_stricmp(val, "0") || !_stricmp(val, "none") || !_stricmp(val, "off")) return -1;
+    if (!_stricmp(val, "true") || !_stricmp(val, "1")) return def_target;
+    if (!_stricmp(val, "l") || !_stricmp(val, "lb") || !_stricmp(val, "leftshoulder")) return 9;
+    if (!_stricmp(val, "r") || !_stricmp(val, "rb") || !_stricmp(val, "rightshoulder")) return 10;
+    if (!_stricmp(val, "a")) return 0;
+    if (!_stricmp(val, "b") || !_stricmp(val, "dash")) return 1;
+    return def_target;
+}
+
+static void load_gamepad_config(void) {
+    char exe_dir[MAX_PATH];
+    exe_dir[0] = '\0';
+    GetModuleFileNameA(NULL, exe_dir, MAX_PATH);
+    char* p = strrchr(exe_dir, '\\');
+    if (p) *p = '\0';
+
+    char ini_path[MAX_PATH];
+    snprintf(ini_path, MAX_PATH, "%s\\keybinds.ini", exe_dir);
+
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (GetFileAttributesExA(ini_path, GetFileExInfoStandard, &fad)) {
+        if (g_gamepad_config_loaded &&
+            fad.ftLastWriteTime.dwLowDateTime == g_last_keybinds_time.dwLowDateTime &&
+            fad.ftLastWriteTime.dwHighDateTime == g_last_keybinds_time.dwHighDateTime) {
+            return;
+        }
+        g_last_keybinds_time = fad.ftLastWriteTime;
+    } else if (g_gamepad_config_loaded) {
+        return;
+    }
+    g_gamepad_config_loaded = 1;
+
+    for (int i = 0; i < 15; i++) g_btn_map[i] = (uint8_t)i;
+    g_btn_map[2] = 1; // Xbox X defaults to Dash (GBA B)
+    g_btn_map[3] = 0; // Xbox Y defaults to Confirm (GBA A)
+
+    char layout[64];
+    layout[0] = '\0';
+    GetPrivateProfileStringA("gamepad1", "layout", "xbox", layout, sizeof(layout), ini_path);
+
+    if (!_stricmp(layout, "nintendo") || !_stricmp(layout, "switch") || !_stricmp(layout, "snes")) {
+        // Nintendo layout: Physical East (Xbox B / Switch A) is Confirm; Physical South (Xbox A / Switch B) is Dash
+        g_btn_map[0] = 1; // Xbox A -> GBA B (Dash)
+        g_btn_map[1] = 0; // Xbox B -> GBA A (Confirm)
+        g_btn_map[2] = 0; // Xbox X -> GBA A (Confirm)
+        g_btn_map[3] = 1; // Xbox Y -> GBA B (Dash)
+    } else if (!_stricmp(layout, "classic")) {
+        g_btn_map[2] = 2; // Leave X as X
+        g_btn_map[3] = 3; // Leave Y as Y
+    }
+
+    char val[64];
+    #define OVERRIDE_BTN(key, btn_idx) \
+        if (GetPrivateProfileStringA("gamepad1", key, "", val, sizeof(val), ini_path) > 0) \
+            g_btn_map[btn_idx] = parse_btn_target(val, g_btn_map[btn_idx]);
+
+    OVERRIDE_BTN("a", 0);
+    OVERRIDE_BTN("b", 1);
+    OVERRIDE_BTN("x", 2);
+    OVERRIDE_BTN("y", 3);
+    OVERRIDE_BTN("l", 9);
+    OVERRIDE_BTN("lb", 9);
+    OVERRIDE_BTN("r", 10);
+    OVERRIDE_BTN("rb", 10);
+    OVERRIDE_BTN("select", 4);
+    OVERRIDE_BTN("back", 4);
+    OVERRIDE_BTN("start", 6);
+    #undef OVERRIDE_BTN
+
+    char trig_l[32], trig_r[32];
+    GetPrivateProfileStringA("gamepad1", "trigger_l", "true", trig_l, sizeof(trig_l), ini_path);
+    GetPrivateProfileStringA("gamepad1", "trigger_r", "true", trig_r, sizeof(trig_r), ini_path);
+    g_trigger_l_target = parse_trigger_target(trig_l, 9);
+    g_trigger_r_target = parse_trigger_target(trig_r, 10);
+
+    char log_buf[256];
+    snprintf(log_buf, sizeof(log_buf),
+        "[GAMEPAD] Config loaded: A->%d, B->%d, X->%d, Y->%d, LB->%d, RB->%d, LT->%d, RT->%d",
+        g_btn_map[0], g_btn_map[1], g_btn_map[2], g_btn_map[3],
+        g_btn_map[9], g_btn_map[10], g_trigger_l_target, g_trigger_r_target);
+    log_hotkey(log_buf);
+}
+
 static int Hooked_SDL_PollEvent(void* ev_ptr) {
     if (!g_real_PollEvent) return 0;
     int res = g_real_PollEvent(ev_ptr);
     if (!res || !ev_ptr) return res;
 
+    load_gamepad_config();
+
     SDL_Event_t* event = (SDL_Event_t*)ev_ptr;
 
-    if (event->type == 0x300 || event->type == 0x301) { // SDL_KEYDOWN or SDL_KEYUP
+    // Gamepad button remapping: SDL_CONTROLLERBUTTONDOWN (0x651) or SDL_CONTROLLERBUTTONUP (0x652)
+    if (event->type == 0x651 || event->type == 0x652) {
+        uint8_t* pBtn = ((uint8_t*)ev_ptr) + 12;
+        if (*pBtn < 15) {
+            uint8_t target = g_btn_map[*pBtn];
+            if (target == 255) {
+                // Drop unbound button
+                return Hooked_SDL_PollEvent(ev_ptr);
+            }
+            *pBtn = target;
+        }
+    }
+    // Generic joystick buttons: SDL_JOYBUTTONDOWN (0x603) or SDL_JOYBUTTONUP (0x604)
+    else if (event->type == 0x603 || event->type == 0x604) {
+        uint8_t* pBtn = ((uint8_t*)ev_ptr) + 12;
+        if (*pBtn < 15) {
+            uint8_t target = g_btn_map[*pBtn];
+            if (target == 255) {
+                return Hooked_SDL_PollEvent(ev_ptr);
+            }
+            *pBtn = target;
+        }
+    }
+    // Analog trigger translation: SDL_CONTROLLERAXISMOTION (0x650)
+    else if (event->type == 0x650) {
+        uint8_t axis = *((uint8_t*)ev_ptr + 12);
+        int16_t value = *((int16_t*)((uint8_t*)ev_ptr + 16));
+
+        if (axis == 4 && g_trigger_l_target >= 0) { // Left Trigger (LT)
+            if (value > 16000 && !g_lt_active) {
+                g_lt_active = 1;
+                *(uint32_t*)ev_ptr = 0x651; // SDL_CONTROLLERBUTTONDOWN
+                *((uint8_t*)ev_ptr + 12) = (uint8_t)g_trigger_l_target;
+                *((uint8_t*)ev_ptr + 13) = 1; // SDL_PRESSED
+            } else if (value < 8000 && g_lt_active) {
+                g_lt_active = 0;
+                *(uint32_t*)ev_ptr = 0x652; // SDL_CONTROLLERBUTTONUP
+                *((uint8_t*)ev_ptr + 12) = (uint8_t)g_trigger_l_target;
+                *((uint8_t*)ev_ptr + 13) = 0; // SDL_RELEASED
+            }
+        }
+        else if (axis == 5 && g_trigger_r_target >= 0) { // Right Trigger (RT)
+            if (value > 16000 && !g_rt_active) {
+                g_rt_active = 1;
+                *(uint32_t*)ev_ptr = 0x651; // SDL_CONTROLLERBUTTONDOWN
+                *((uint8_t*)ev_ptr + 12) = (uint8_t)g_trigger_r_target;
+                *((uint8_t*)ev_ptr + 13) = 1; // SDL_PRESSED
+            } else if (value < 8000 && g_rt_active) {
+                g_rt_active = 0;
+                *(uint32_t*)ev_ptr = 0x652; // SDL_CONTROLLERBUTTONUP
+                *((uint8_t*)ev_ptr + 12) = (uint8_t)g_trigger_r_target;
+                *((uint8_t*)ev_ptr + 13) = 0; // SDL_RELEASED
+            }
+        }
+    }
+    else if (event->type == 0x300 || event->type == 0x301) { // SDL_KEYDOWN or SDL_KEYUP
         uint32_t sym = (uint32_t)event->key.keysym.sym;
         uint32_t scancode = event->key.keysym.scancode;
 

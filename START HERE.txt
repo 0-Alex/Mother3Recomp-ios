@@ -27,8 +27,17 @@ What's New in v1.0.2:
    - Double-click "apply_hq_sound_mod.bat" to automatically patch your English v1.3
      ROM with 16-bit sound mixing and configure the game to launch it instantly!
 
-3. Controls (Defaults):
-- Keyboard:
+3. Controls & Controller Remapping:
+- Controller Remapping:
+    * Run "Remap Controller.bat" in the game folder to switch layouts with 1 click!
+    * Layout Presets:
+        - [1] Xbox / PC: A = Confirm, B = Cancel/Dash, X = Dash, Y = Confirm
+        - [2] Nintendo / Switch: B = Confirm, A = Cancel/Dash, Y = Dash, X = Confirm
+        - [3] Modern Trigger Dash: Right Trigger (RT) dashes!
+        - [4] Classic 1:1 Hardware: Direct hardware mapping
+    * Changes take effect IMMEDIATELY (hot-reloaded, no restart required).
+    * Custom overrides can also be edited directly in "keybinds.ini".
+- Keyboard Defaults:
     * Arrows = D-Pad / Movement
     * X = A (Confirm / Talk)
     * Z = B (Cancel / Dash)
@@ -36,12 +45,14 @@ What's New in v1.0.2:
     * V = R (Map)
     * Enter = Start (In-game menu)
     * Right Shift = Select (Wake sleep)
-- Gamepad (Xbox / PlayStation / PC):
-    * Left Analog Stick & D-Pad = 8-Way Movement
+- Gamepad Defaults (Xbox / PlayStation / PC):
+    * Left Stick & D-Pad = 8-Way Movement
     * A (Cross) = Confirm / Talk
-    * B (Circle) = Cancel / Run
-    * X / LB = L (Quick text)
-    * Y / RB = R (Map)
+    * B (Circle) = Cancel / Dash
+    * X = Dash (easy thumb run!)
+    * Y = Confirm / Talk
+    * LB / LT = L Shoulder (Quick text)
+    * RB / RT = R Shoulder (Map)
     * Start = Start
     * Back = Select
 - System Hotkeys:

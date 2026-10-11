@@ -99,18 +99,37 @@ To play, you must provide your own legitimate dumps of:
 ## 4. Controls & Hotkeys
 
 ### Gameplay Controls
-| Action | Keyboard | Controller (Xbox / PC) | DualShock / DualSense |
-| :--- | :--- | :--- | :--- |
-| **Movement** | Arrow Keys | **Left Analog Stick** / D-Pad | **Left Analog Stick** / D-Pad |
-| **A (Confirm / Talk)** | `X` | `A` | `Cross` |
-| **B (Cancel / Dash)** | `Z` | `B` | `Circle` |
-| **L (Quick text / Info)** | `C` | `X` / `LB` | `Square` / `L1` |
-| **R (Map)** | `V` | `Y` / `RB` | `Triangle` / `R1` |
-| **Start (In-Game Menu)**| `Enter` | `Start` | `Options` |
-| **Select (Wake Sleep)** | `Right Shift`| `Back` / `View` | `Share` / `Touchpad` |
+| Action | Keyboard | Controller (Xbox / PC) | DualShock / DualSense | Switch Pro |
+| :--- | :--- | :--- | :--- | :--- |
+| **Movement** | Arrow Keys | **Left Analog Stick** / D-Pad | **Left Analog Stick** / D-Pad | **Left Analog Stick** / D-Pad |
+| **A (Confirm / Talk)** | `X` | `A` (or `Y`) | `Cross` (or `Triangle`) | `A` (or `X` in Nintendo mode) |
+| **B (Cancel / Dash)** | `Z` | `B` (or `X`) | `Circle` (or `Square`) | `B` (or `Y` in Nintendo mode) |
+| **Dash (Alternate)** | `Z` | **`X`** *(Thumb Dash)* | **`Square`** | **`Y`** |
+| **L (Quick text / Info)** | `C` | `LB` / `LT` | `L1` / `L2` | `L` / `ZL` |
+| **R (Map)** | `V` | `RB` / `RT` | `R1` / `R2` | `R` / `ZR` |
+| **Start (In-Game Menu)**| `Enter` | `Start` | `Options` | `+` (Plus) |
+| **Select (Wake Sleep)** | `Right Shift`| `Back` / `View` | `Share` / `Touchpad` | `-` (Minus) |
 
 > [!TIP]
 > **Sleep Mode Wake**: If the game enters sleep mode (screen goes dark), press **`L + R + Select`** (`C + V + Right Shift` or `LB + RB + Back`) to wake it, matching authentic GBA hardware behavior.
+
+### Controller Remapping & Layout Presets
+
+Mother 3 Recomp includes a native zero-latency gamepad remapping engine inside `mother3_bezel.dll` configured through `keybinds.ini`.
+
+> [!NOTE]
+> **Why `Remap Controller.bat`?**: In the upstream `recomp-ui` launcher GUI, clicking a button under Settings $\rightarrow$ Controls opens a prompt that only listens for keyboard inputs, ignoring controller button presses. Our native DLL interposer bypasses this limitation completely at the SDL2 event layer.
+
+**One-Click Presets (`Remap Controller.bat`)**:
+Double-click **`Remap Controller.bat`** in the game folder to switch between layout presets with 1 click:
+- **`[1] Xbox / PC Standard`** *(Default)*: Physical `A` = Confirm, `B` = Cancel/Dash, `X` = Dash (ergonomic thumb run!), `Y` = Confirm, `LT`/`LB` = L, `RT`/`RB` = R.
+- **`[2] Nintendo / Switch`**: Physical `B` = Confirm, `A` = Cancel/Dash, `Y` = Dash, `X` = Confirm (matches authentic GBA / SNES physical button placement!).
+- **`[3] Modern Trigger Dash`**: Holding **Right Trigger (RT)** dashes! Perfect for modern controller ergonomics.
+- **`[4] Classic 1:1 Hardware`**: Direct 1:1 hardware pass-through (`A`=A, `B`=B, `X`=X, `Y`=Y).
+- **`[5] Custom Setup`**: Interactively assign any physical button or analog trigger.
+
+> [!TIP]
+> **Live Hot-Reloading**: Changes to `keybinds.ini` are monitored dynamically in memory. When you select a preset or save `keybinds.ini`, your new controls take effect **immediately in real time** without having to restart the game!
 
 ### System Hotkeys
 | Hotkey | Action | Behavior |
