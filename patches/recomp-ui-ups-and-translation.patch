@@ -1,0 +1,228 @@
+diff --git a/src/common/backends/imgui/launcher_imgui.cpp b/src/common/backends/imgui/launcher_imgui.cpp
+index cf8cf35..8597c2f 100644
+--- a/src/common/backends/imgui/launcher_imgui.cpp
++++ b/src/common/backends/imgui/launcher_imgui.cpp
+@@ -2228,6 +2228,12 @@ void draw_game_panel(LauncherModel* m, const LauncherTheme& th, bool fill_h = fa
+         state_mark(verified, th);
+         ImGui::SameLine(0, px(6));
+         ImGui::TextColored(verified ? col(th.good) : col(th.warn), "%s", line);
++        if (launcher_model_rom_needs_patch(m)) {
++            const char* hint = ui_text("Stock ROM: add its patch under ROM Patch");
++            const float hw = ImGui::CalcTextSize(hint).x;
++            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (availw - hw) * 0.5f);
++            ImGui::TextColored(col(th.warn), "%s", hint);
++        }
+     }
+     ImGui::Dummy(ImVec2(0, px(10)));
+ 
+@@ -12336,7 +12342,7 @@ static void draw_rom_patch(LauncherModel* m, const LauncherTheme& th) {
+         ImGui::SameLine(ImGui::GetContentRegionAvail().x - browse_w - clear_w -
+                         px(8));
+         if (ImGui::Button(ui_text("Browse..."), ImVec2(browse_w, px(28)))) {
+-            ui_pick_file(m, "Select ROM patch", {"*.ips", "*.ips32", "*.bps"},
++            ui_pick_file(m, "Select ROM patch", {"*.ips", "*.ips32", "*.bps", "*.ups"},
+                          "ROM patches", [m](const char* path) {
+                              if (path) launcher_model_set_rom_patch(m, path);
+                          });
+@@ -14042,7 +14048,8 @@ void draw_ui(LauncherModel* m, const LauncherTheme& th, int logical_w, int logic
+         const float right = ImGui::GetWindowContentRegionMax().x;
+         const float y = hdr_top + px(6.0f);
+         if (m->view == LNG_VIEW_DASHBOARD) {
+-            const int count = 1 + (m->mods ? 1 : 0) +
++            const bool show_mods = m->mods || m->rom_patch_supported;
++            const int count = 1 + (show_mods ? 1 : 0) +
+                               (m->has_assist_tools ? 1 : 0) +
+                               ((m->credits_text && m->credits_text[0]) ? 1 : 0);
+             const float w = px(110.0f);
+@@ -14050,9 +14057,9 @@ void draw_ui(LauncherModel* m, const LauncherTheme& th, int logical_w, int logic
+             ImGui::SetCursorPos(ImVec2(right - total, y));
+             if (ImGui::Button(ui_text("Settings"), ImVec2(w, px(34))))
+                 launcher_model_set_view(m, LNG_VIEW_SETTINGS);
+-            if (m->mods) {
++            if (show_mods) {
+                 ImGui::SameLine(0, gap);
+-                if (ImGui::Button(ui_text("Mods"), ImVec2(w, px(34))))
++                if (ImGui::Button(ui_text(m->mods ? "Mods" : "ROM Patch"), ImVec2(w, px(34))))
+                     launcher_model_set_view(m, LNG_VIEW_MODS);
+             }
+             if (m->has_assist_tools) {
+diff --git a/src/common/ips_patch.c b/src/common/ips_patch.c
+index e25cb6c..3999377 100644
+--- a/src/common/ips_patch.c
++++ b/src/common/ips_patch.c
+@@ -30,6 +30,7 @@ IpsPatchFormat ips_detect_format(const uint8_t* patch, size_t patch_len) {
+     if (patch_len >= 5 && memcmp(patch, "PATCH", 5) == 0) return IPS_PATCH_CLASSIC;
+     if (patch_len >= 5 && memcmp(patch, "IPS32", 5) == 0) return IPS_PATCH_IPS32;
+     if (memcmp(patch, "BPS1", 4) == 0) return IPS_PATCH_BPS;
++    if (memcmp(patch, "UPS1", 4) == 0) return IPS_PATCH_UPS;
+     return IPS_PATCH_UNKNOWN;
+ }
+ 
+@@ -241,11 +242,62 @@ bool bps_apply(const uint8_t* src, size_t src_len,
+     return true;
+ }
+ 
++// UPS1: "UPS1", varint input size, varint output size, then records of
++// (varint skip, XOR bytes terminated by 0x00) up to a 12-byte CRC32 footer
++// (input, output, patch-without-final-crc). Varints share BPS's encoding.
++bool ups_apply(const uint8_t* src, size_t src_len,
++               const uint8_t* patch, size_t patch_len,
++               uint8_t** out_data, size_t* out_len) {
++    if (!out_data || !out_len || (src_len && !src) || !patch ||
++        patch_len < 4 + 2 + 12 || memcmp(patch, "UPS1", 4) != 0)
++        return false;
++    const size_t body_end = patch_len - 12;
++    const uint32_t expected_in_crc = bps_read_le32(patch + body_end);
++    const uint32_t expected_out_crc = bps_read_le32(patch + body_end + 4);
++    const uint32_t expected_patch_crc = bps_read_le32(patch + body_end + 8);
++    if (recompui_crc32_compute(patch, patch_len - 4) != expected_patch_crc)
++        return false;
++    size_t cursor = 4;
++    uint64_t in_size = 0, out_size = 0;
++    if (!bps_read_number(patch, body_end, &cursor, &in_size) ||
++        !bps_read_number(patch, body_end, &cursor, &out_size) ||
++        in_size != src_len || out_size > SIZE_MAX ||
++        recompui_crc32_compute(src, src_len) != expected_in_crc)
++        return false;
++    const size_t target_len = (size_t)out_size;
++    uint8_t* target = (uint8_t*)calloc(target_len ? target_len : 1, 1);
++    if (!target) return false;
++    memcpy(target, src, src_len < target_len ? src_len : target_len);
++    size_t pos = 0;
++    while (cursor < body_end) {
++        uint64_t skip = 0;
++        if (!bps_read_number(patch, body_end, &cursor, &skip) ||
++            skip > (uint64_t)(SIZE_MAX - pos)) { free(target); return false; }
++        pos += (size_t)skip;
++        for (;;) {
++            if (cursor >= body_end) { free(target); return false; }
++            const uint8_t x = patch[cursor++];
++            if (x == 0) { ++pos; break; }
++            if (pos >= target_len) { free(target); return false; }
++            target[pos++] ^= x;
++        }
++    }
++    if (recompui_crc32_compute(target, target_len) != expected_out_crc) {
++        free(target);
++        return false;
++    }
++    *out_data = target;
++    *out_len = target_len;
++    return true;
++}
++
+ bool rom_patch_apply(const uint8_t* src, size_t src_len,
+                      const uint8_t* patch, size_t patch_len,
+                      uint8_t** out_data, size_t* out_len) {
+     const IpsPatchFormat format = ips_detect_format(patch, patch_len);
+     if (format == IPS_PATCH_BPS)
+         return bps_apply(src, src_len, patch, patch_len, out_data, out_len);
++    if (format == IPS_PATCH_UPS)
++        return ups_apply(src, src_len, patch, patch_len, out_data, out_len);
+     return ips_apply(src, src_len, patch, patch_len, out_data, out_len);
+ }
+diff --git a/src/common/ips_patch.h b/src/common/ips_patch.h
+index 4052160..3d2e9c5 100644
+--- a/src/common/ips_patch.h
++++ b/src/common/ips_patch.h
+@@ -22,6 +22,7 @@ typedef enum IpsPatchFormat {
+     IPS_PATCH_CLASSIC,
+     IPS_PATCH_IPS32,
+     IPS_PATCH_BPS,
++    IPS_PATCH_UPS,
+ } IpsPatchFormat;
+ 
+ IpsPatchFormat ips_detect_format(const uint8_t* patch, size_t patch_len);
+@@ -49,7 +50,13 @@ bool bps_apply(const uint8_t* src, size_t src_len,
+                const uint8_t* patch, size_t patch_len,
+                uint8_t** out_data, size_t* out_len);
+ 
+-// Auto-detect and apply classic IPS, IPS32, or BPS1.
++// Apply a UPS1 (byuu) patch and verify all three CRC32s embedded in it. The
++// source size and checksum must match the patch's declared input exactly.
++bool ups_apply(const uint8_t* src, size_t src_len,
++               const uint8_t* patch, size_t patch_len,
++               uint8_t** out_data, size_t* out_len);
++
++// Auto-detect and apply classic IPS, IPS32, BPS1, or UPS1.
+ bool rom_patch_apply(const uint8_t* src, size_t src_len,
+                      const uint8_t* patch, size_t patch_len,
+                      uint8_t** out_data, size_t* out_len);
+diff --git a/src/common/launcher_model.c b/src/common/launcher_model.c
+index 0e22e75..eefee5d 100644
+--- a/src/common/launcher_model.c
++++ b/src/common/launcher_model.c
+@@ -580,6 +580,7 @@ void launcher_model_init(LauncherModel* m,
+         m->rom_patch_note       = game->rom_patch_note;
+         m->rom_patch_cache_dir  = game->rom_patch_cache_dir;
+         m->rom_patch_required_sha1 = game->rom_patch_required_sha1;
++        m->rom_patch_source_sha1 = game->rom_patch_source_sha1;
+ #if RECOMP_UI_ENABLE_MODS
+         m->mods                 = game->mods;
+ #else
+@@ -3009,11 +3010,21 @@ bool launcher_model_can_finish_setup(const LauncherModel* m) {
+     return true;
+ }
+ 
++bool launcher_model_rom_needs_patch(const LauncherModel* m) {
++    return m && m->rom_present && m->rom_patch_source_sha1 &&
++           m->rom_patch_source_sha1[0] && m->rom_sha1_hex[0] &&
++           strcmp(m->rom_sha1_hex, m->rom_patch_source_sha1) == 0 &&
++           !(m->rom_patch_supported && m->s.rom_patch_enabled &&
++             m->s.rom_patch_path[0]);
++}
++
+ bool launcher_model_can_launch(const LauncherModel* m) {
+     if (!m) return false;
+     if (!m->rom_present || strcmp(m->rom_size, "--") == 0) return false;
+     if (m->rom_patch_supported && m->s.rom_patch_enabled &&
+         !m->s.rom_patch_path[0]) return false;
++    if (launcher_model_rom_needs_patch(m))
++        return false;   /* stock source image needs its patch first */
+     if (m->profile && m->profile->verify.mode == 1) {
+         /* Disc systems: reject none/bad; warn (2) and ok (1) are playable. */
+         if (m->verify.verdict == 0 || m->verify.verdict == 3) return false;
+diff --git a/src/common/launcher_model.h b/src/common/launcher_model.h
+index 1e7fc30..04ce112 100644
+--- a/src/common/launcher_model.h
++++ b/src/common/launcher_model.h
+@@ -384,6 +384,7 @@ typedef struct {
+     const char* rom_patch_note;
+     const char* rom_patch_cache_dir;
+     const char* rom_patch_required_sha1;
++    const char* rom_patch_source_sha1;
+     char      rom_patch_status[256];
+     char      rom_patch_prepared_path[512];
+     char      rom_patch_prepared_sha1[41];
+@@ -1173,6 +1174,8 @@ void launcher_model_setup_start_bios_regen(LauncherModel* m);
+ // succeeded. Fingerprint mismatch is allowed here.
+ bool launcher_model_can_finish_setup(const LauncherModel* m);
+ // True when BIOS (if required) and ROM/disc are ready to launch (incl. fingerprint).
++/* Stock source image of a translation build that still needs its patch. */
++bool launcher_model_rom_needs_patch(const LauncherModel* m);
+ bool launcher_model_can_launch(const LauncherModel* m);
+ // True when the mounted disc is OK for online (TOC/cue policy + content).
+ // Non-disc games (verify.mode!=1) always return true when netplay is supported.
+diff --git a/src/recomp_launcher.h b/src/recomp_launcher.h
+index 5ac76bd..5d74307 100644
+--- a/src/recomp_launcher.h
++++ b/src/recomp_launcher.h
+@@ -2139,13 +2139,17 @@ typedef struct RecompLauncherCGameInfo {
+     int assist_fast_forward_max;
+ 
+     /* Optional general ROM-patch surface. recomp-ui applies classic IPS,
+-     * IPS32, and checksum-verified BPS to a verified stock image. The cache
++     * IPS32, and checksum-verified BPS/UPS to a verified stock image. The cache
+      * directory must already exist and should be owned by the host beside its
+      * other mod data. NULL note uses the shared compatibility warning. */
+     int rom_patch_supported;
+     const char* rom_patch_note;
+     const char* rom_patch_cache_dir;
+     const char* rom_patch_required_sha1;
++    /* Translation builds that accept BOTH a stock source image (patched here)
++     * and an already-patched image: a ROM matching this SHA-1 may launch only
++     * with a ROM patch enabled. NULL keeps the original behavior. */
++    const char* rom_patch_source_sha1;
+ 
+     /* ---- multi-image titles (appended additively) ------------------------
+      * The roster of discs this build was made from, in disc order. When

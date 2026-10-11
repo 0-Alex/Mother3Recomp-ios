@@ -1,0 +1,45 @@
+Mother 3 Recomp (English) - Windows x64 v1.0.0
+==============================================
+
+1. Run "Play Mother 3.cmd" or "Mother3Recomp.exe".
+2. On first launch, the game boots directly into the Launcher screen:
+     - Choose your GBA BIOS (gba_bios.bin, 16 KB retail dump).
+     - Choose your ROM:
+         * An English MOTHER 3 Fan Translation v1.3 ROM (.gba), OR
+         * A clean Japanese MOTHER 3 ROM, then enable "ROM patch" and select
+           mother3.ups from the official v1.3 fan translation download.
+3. Configure display/audio/controls if desired, then click "Play".
+
+Controls (Defaults):
+- Keyboard:
+    * Arrows = D-Pad / Movement
+    * X = A (Confirm / Talk)
+    * Z = B (Cancel / Dash)
+    * C = L (Quick text / Info)
+    * V = R (Map)
+    * Enter = Start (In-game menu)
+    * Right Shift = Select (Wake sleep)
+- Gamepad (Xbox / PC):
+    * Left Analog Stick & D-Pad = 8-Way Movement
+    * A = Confirm / Talk
+    * B = Cancel / Run
+    * X / LB = L (Quick text)
+    * Y / RB = R (Map)
+    * Start = Start
+    * Back = Select
+- System Hotkeys:
+    * F11 = In-game overlay menu (replaces default Escape)
+    * Esc = Instant clean exit (cleanly saves and exits)
+    * F1 = Quick save state (Slot 1)
+    * F2 = Quick load state (Slot 1)
+    * Hold 1 (or LT) = Rewind
+    * Hold 2 (or RT) = Fast-forward
+
+Display & Bezel:
+- Authentic 3:2 Game Boy Advance aspect ratio with zero clipping of warning text or HUD.
+- Official 1080p Sunset & Party Bezel with smooth alpha-blended framing.
+- Sleep mode wake: press L + R + Select (C + V + Right Shift or LB + RB + Back).
+
+Legal Notice:
+No commercial ROM, BIOS dump, or copyrighted game asset is included.
+Please read README.md for complete details.
