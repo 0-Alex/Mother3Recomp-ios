@@ -2,7 +2,17 @@
 
 A native 64-bit Windows port of **MOTHER 3** featuring the official **MOTHER 3 Fan Translation v1.3 (English)**. 
 
-Unlike conventional emulation, this project statically recompiles the original Game Boy Advance ARM/Thumb machine code into native C++ instructions. The resulting binary executes natively on modern PC hardware with ultra-low latency, full analog movement, 1080p custom bezel framing, integer scaling, and instant save state controls.
+Unlike conventional emulation, this project statically recompiles the original Game Boy Advance ARM/Thumb machine code into native C++ instructions. The resulting binary executes natively on modern PC hardware with ultra-low latency, full analog movement, custom bezel framing, integer scaling, and instant save state controls.
+
+---
+
+<p align="center">
+  <img src="docs/img/screenshot_title.png" alt="MOTHER 3 Title Screen" width="850">
+</p>
+
+<p align="center">
+  <img src="docs/img/screenshot_gameplay.png" alt="MOTHER 3 Gameplay with Sunset & Party Bezel" width="850">
+</p>
 
 ---
 
@@ -37,7 +47,7 @@ To play, you must provide your own legitimate dumps of:
 
 ## 2. First-Time Setup & Quick Start
 
-1. Download the release package [`Mother3Recomp-v1.0.0-windows-x64.zip`](https://github.com/) and extract it anywhere on your PC.
+1. Download the release package [`Mother3Recomp-v1.0.0-windows-x64.zip`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.0) and extract it anywhere on your PC.
 2. Run **`Play Mother 3.cmd`** or **`Mother3Recomp.exe`**.
 3. On first launch, the game boots directly into the **Launcher UI**:
    - Click **Select GBA BIOS dump** and choose your `gba_bios.bin`.
@@ -97,7 +107,7 @@ To play, you must provide your own legitimate dumps of:
 ### Compilation Steps (Windows cross-compilation or native MinGW)
 ```bash
 # Clone the repository
-git clone https://github.com/<owner>/Mother3Recomp.git
+git clone https://github.com/josiahg2502-glitch/Mother3Recomp.git
 cd Mother3Recomp
 
 # Build the bezel interposer DLL
