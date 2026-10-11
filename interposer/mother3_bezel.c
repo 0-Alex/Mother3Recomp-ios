@@ -97,6 +97,153 @@ static void log_hotkey(const char* msg) {
     }
 }
 
+// 8x8 bitmap font (ASCII 32 to 126) for on-screen HUD
+static const uint8_t g_font8x8[95][8] = {
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, /* ' ' */
+    {0x10, 0x10, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00}, /* '!' */
+    {0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, /* '"' */
+    {0x10, 0x78, 0x10, 0x78, 0x20, 0x00, 0x00, 0x00}, /* '#' */
+    {0x38, 0x50, 0x30, 0x28, 0x78, 0x20, 0x00, 0x00}, /* '$' */
+    {0x78, 0x10, 0x20, 0x3c, 0x5c, 0x00, 0x00, 0x00}, /* '%' */
+    {0x50, 0x60, 0x68, 0x50, 0x78, 0x00, 0x00, 0x00}, /* '&' */
+    {0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, /* ''' */
+    {0x10, 0x20, 0x20, 0x20, 0x20, 0x10, 0x08, 0x00}, /* '(' */
+    {0x10, 0x08, 0x08, 0x08, 0x08, 0x10, 0x20, 0x00}, /* ')' */
+    {0x10, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, /* '*' */
+    {0x10, 0x10, 0x7c, 0x10, 0x10, 0x00, 0x00, 0x00}, /* '+' */
+    {0x00, 0x00, 0x00, 0x00, 0x10, 0x30, 0x00, 0x00}, /* ',' */
+    {0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00}, /* '-' */
+    {0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00}, /* '.' */
+    {0x10, 0x10, 0x20, 0x20, 0x40, 0x40, 0x00, 0x00}, /* '/' */
+    {0x30, 0x58, 0x78, 0x68, 0x30, 0x00, 0x00, 0x00}, /* '0' */
+    {0x30, 0x10, 0x10, 0x10, 0x38, 0x00, 0x00, 0x00}, /* '1' */
+    {0x38, 0x28, 0x08, 0x10, 0x38, 0x00, 0x00, 0x00}, /* '2' */
+    {0x38, 0x08, 0x18, 0x08, 0x38, 0x00, 0x00, 0x00}, /* '3' */
+    {0x30, 0x30, 0x50, 0x78, 0x10, 0x00, 0x00, 0x00}, /* '4' */
+    {0x38, 0x20, 0x38, 0x08, 0x30, 0x00, 0x00, 0x00}, /* '5' */
+    {0x38, 0x40, 0x78, 0x48, 0x30, 0x00, 0x00, 0x00}, /* '6' */
+    {0x70, 0x10, 0x20, 0x20, 0x40, 0x00, 0x00, 0x00}, /* '7' */
+    {0x78, 0x48, 0x30, 0x48, 0x78, 0x00, 0x00, 0x00}, /* '8' */
+    {0x30, 0x48, 0x78, 0x08, 0x70, 0x00, 0x00, 0x00}, /* '9' */
+    {0x00, 0x10, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00}, /* ':' */
+    {0x00, 0x10, 0x00, 0x00, 0x10, 0x30, 0x00, 0x00}, /* ';' */
+    {0x00, 0x08, 0x10, 0x30, 0x08, 0x00, 0x00, 0x00}, /* '<' */
+    {0x00, 0x38, 0x00, 0x38, 0x00, 0x00, 0x00, 0x00}, /* '=' */
+    {0x00, 0x20, 0x10, 0x18, 0x20, 0x00, 0x00, 0x00}, /* '>' */
+    {0x08, 0x08, 0x38, 0x00, 0x20, 0x00, 0x00, 0x00}, /* '?' */
+    {0x48, 0xb8, 0xb8, 0xb8, 0xa8, 0x80, 0x70, 0x00}, /* '@' */
+    {0x10, 0x28, 0x28, 0x38, 0x48, 0x00, 0x00, 0x00}, /* 'A' */
+    {0x3c, 0x24, 0x38, 0x24, 0x3c, 0x00, 0x00, 0x00}, /* 'B' */
+    {0x30, 0x40, 0x40, 0x40, 0x30, 0x00, 0x00, 0x00}, /* 'C' */
+    {0x70, 0x48, 0x48, 0x48, 0x70, 0x00, 0x00, 0x00}, /* 'D' */
+    {0x38, 0x20, 0x38, 0x20, 0x38, 0x00, 0x00, 0x00}, /* 'E' */
+    {0x38, 0x20, 0x38, 0x20, 0x20, 0x00, 0x00, 0x00}, /* 'F' */
+    {0x38, 0x40, 0x58, 0x48, 0x38, 0x00, 0x00, 0x00}, /* 'G' */
+    {0x48, 0x48, 0x78, 0x48, 0x48, 0x00, 0x00, 0x00}, /* 'H' */
+    {0x38, 0x10, 0x10, 0x10, 0x38, 0x00, 0x00, 0x00}, /* 'I' */
+    {0x38, 0x08, 0x08, 0x08, 0x38, 0x00, 0x00, 0x00}, /* 'J' */
+    {0x28, 0x30, 0x30, 0x30, 0x28, 0x00, 0x00, 0x00}, /* 'K' */
+    {0x20, 0x20, 0x20, 0x20, 0x38, 0x00, 0x00, 0x00}, /* 'L' */
+    {0x30, 0x30, 0x68, 0x48, 0x48, 0x00, 0x00, 0x00}, /* 'M' */
+    {0x48, 0x68, 0x68, 0x58, 0x48, 0x00, 0x00, 0x00}, /* 'N' */
+    {0x30, 0x48, 0x48, 0x48, 0x30, 0x00, 0x00, 0x00}, /* 'O' */
+    {0x3c, 0x24, 0x38, 0x20, 0x20, 0x00, 0x00, 0x00}, /* 'P' */
+    {0x30, 0x48, 0x48, 0x48, 0x30, 0x18, 0x00, 0x00}, /* 'Q' */
+    {0x38, 0x28, 0x30, 0x28, 0x28, 0x00, 0x00, 0x00}, /* 'R' */
+    {0x3c, 0x20, 0x18, 0x04, 0x3c, 0x00, 0x00, 0x00}, /* 'S' */
+    {0x7c, 0x10, 0x10, 0x10, 0x10, 0x00, 0x00, 0x00}, /* 'T' */
+    {0x48, 0x48, 0x48, 0x48, 0x70, 0x00, 0x00, 0x00}, /* 'U' */
+    {0x28, 0x28, 0x28, 0x28, 0x10, 0x00, 0x00, 0x00}, /* 'V' */
+    {0x48, 0x48, 0x68, 0x78, 0x48, 0x00, 0x00, 0x00}, /* 'W' */
+    {0x48, 0x30, 0x20, 0x30, 0x48, 0x00, 0x00, 0x00}, /* 'X' */
+    {0x44, 0x28, 0x10, 0x10, 0x10, 0x00, 0x00, 0x00}, /* 'Y' */
+    {0x70, 0x10, 0x20, 0x40, 0x78, 0x00, 0x00, 0x00}, /* 'Z' */
+    {0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x30, 0x00}, /* '[' */
+    {0x20, 0x10, 0x10, 0x08, 0x08, 0x04, 0x00, 0x00}, /* '\' */
+    {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x30, 0x00}, /* ']' */
+    {0x20, 0x50, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00}, /* '^' */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x00}, /* '_' */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, /* '`' */
+    {0x00, 0x3c, 0x3c, 0x24, 0x3c, 0x00, 0x00, 0x00}, /* 'a' */
+    {0x20, 0x3c, 0x24, 0x24, 0x38, 0x00, 0x00, 0x00}, /* 'b' */
+    {0x00, 0x18, 0x20, 0x20, 0x38, 0x00, 0x00, 0x00}, /* 'c' */
+    {0x08, 0x38, 0x48, 0x48, 0x78, 0x00, 0x00, 0x00}, /* 'd' */
+    {0x00, 0x38, 0x78, 0x40, 0x38, 0x00, 0x00, 0x00}, /* 'e' */
+    {0x20, 0x70, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00}, /* 'f' */
+    {0x00, 0x78, 0x48, 0x78, 0x78, 0x48, 0x70, 0x00}, /* 'g' */
+    {0x20, 0x38, 0x28, 0x28, 0x28, 0x00, 0x00, 0x00}, /* 'h' */
+    {0x00, 0x30, 0x10, 0x10, 0x38, 0x00, 0x00, 0x00}, /* 'i' */
+    {0x00, 0x38, 0x08, 0x08, 0x08, 0x08, 0x38, 0x00}, /* 'j' */
+    {0x20, 0x28, 0x30, 0x28, 0x24, 0x00, 0x00, 0x00}, /* 'k' */
+    {0x10, 0x10, 0x10, 0x10, 0x38, 0x00, 0x00, 0x00}, /* 'l' */
+    {0x00, 0x7c, 0x54, 0x54, 0x54, 0x00, 0x00, 0x00}, /* 'm' */
+    {0x00, 0x38, 0x28, 0x28, 0x28, 0x00, 0x00, 0x00}, /* 'n' */
+    {0x00, 0x30, 0x48, 0x48, 0x30, 0x00, 0x00, 0x00}, /* 'o' */
+    {0x00, 0x38, 0x28, 0x28, 0x38, 0x20, 0x20, 0x00}, /* 'p' */
+    {0x00, 0x38, 0x48, 0x48, 0x78, 0x08, 0x08, 0x00}, /* 'q' */
+    {0x00, 0x3c, 0x24, 0x20, 0x20, 0x00, 0x00, 0x00}, /* 'r' */
+    {0x00, 0x38, 0x20, 0x18, 0x38, 0x00, 0x00, 0x00}, /* 's' */
+    {0x20, 0x78, 0x20, 0x20, 0x38, 0x00, 0x00, 0x00}, /* 't' */
+    {0x00, 0x28, 0x28, 0x28, 0x38, 0x00, 0x00, 0x00}, /* 'u' */
+    {0x00, 0x28, 0x28, 0x28, 0x10, 0x00, 0x00, 0x00}, /* 'v' */
+    {0x00, 0x88, 0xb0, 0x70, 0x50, 0x00, 0x00, 0x00}, /* 'w' */
+    {0x00, 0x48, 0x30, 0x30, 0x48, 0x00, 0x00, 0x00}, /* 'x' */
+    {0x00, 0x28, 0x28, 0x28, 0x10, 0x10, 0x60, 0x00}, /* 'y' */
+    {0x00, 0x38, 0x10, 0x10, 0x38, 0x00, 0x00, 0x00}, /* 'z' */
+    {0x10, 0x10, 0x20, 0x10, 0x10, 0x10, 0x18, 0x00}, /* '{' */
+    {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x00}, /* '|' */
+    {0x10, 0x10, 0x08, 0x10, 0x10, 0x10, 0x30, 0x00}, /* '}' */
+    {0x00, 0x00, 0xd0, 0xb0, 0x00, 0x00, 0x00, 0x00}, /* '~' */
+};
+
+#define TOAST_W 720
+#define TOAST_H 44
+static uint32_t g_toast_pixels[TOAST_W * TOAST_H];
+static SDL_Texture* g_tex_toast = NULL;
+static DWORD g_toast_expiry = 0;
+static char g_toast_msg[128] = {0};
+
+static void draw_toast_text(const char* text) {
+    for (int y = 0; y < TOAST_H; y++) {
+        for (int x = 0; x < TOAST_W; x++) {
+            if (y == 0 || y == TOAST_H - 1 || x == 0 || x == TOAST_W - 1 ||
+                y == 1 || y == TOAST_H - 2 || x == 1 || x == TOAST_W - 2) {
+                g_toast_pixels[y * TOAST_W + x] = 0xFFF0A000; // Amber Gold Border
+            } else {
+                g_toast_pixels[y * TOAST_W + x] = 0xEE1E1E1E; // Dark charcoal pill
+            }
+        }
+    }
+
+    int len = (int)strlen(text);
+    int start_x = (TOAST_W - (len * 12)) / 2;
+    if (start_x < 10) start_x = 10;
+    int start_y = (TOAST_H - 16) / 2;
+
+    for (int i = 0; i < len; i++) {
+        char c = text[i];
+        if (c < 32 || c > 126) c = ' ';
+        int glyph_idx = c - 32;
+        int cx = start_x + (i * 12);
+        for (int gy = 0; gy < 8; gy++) {
+            uint8_t row = g_font8x8[glyph_idx][gy];
+            for (int gx = 0; gx < 8; gx++) {
+                if (row & (1 << (7 - gx))) {
+                    for (int dy = 0; dy < 2; dy++) {
+                        for (int dx = 0; dx < 2; dx++) {
+                            int px = cx + (gx + dx);
+                            int py = start_y + (gy * 2 + dy);
+                            if (px >= 0 && px < TOAST_W && py >= 0 && py < TOAST_H) {
+                                g_toast_pixels[py * TOAST_W + px] = 0xFFFFFFFF; // Clean White Text
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 static int g_gamepad_config_loaded = 0;
 static FILETIME g_last_keybinds_time = {0, 0};
 static uint8_t g_btn_map[15] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};
@@ -104,6 +251,7 @@ static int g_trigger_l_target = 9;   // Default: LB (button 9)
 static int g_trigger_r_target = 10;  // Default: RB (button 10)
 static int g_lt_active = 0;
 static int g_rt_active = 0;
+static int g_current_preset = 0;
 
 static uint8_t parse_btn_target(const char* name, uint8_t def) {
     if (!_stricmp(name, "none") || !_stricmp(name, "unbound") || !_stricmp(name, "off")) return 255;
@@ -167,14 +315,17 @@ static void load_gamepad_config(void) {
     GetPrivateProfileStringA("gamepad1", "layout", "xbox", layout, sizeof(layout), ini_path);
 
     if (!_stricmp(layout, "nintendo") || !_stricmp(layout, "switch") || !_stricmp(layout, "snes")) {
-        // Nintendo layout: Physical East (Xbox B / Switch A) is Confirm; Physical South (Xbox A / Switch B) is Dash
         g_btn_map[0] = 1; // Xbox A -> GBA B (Dash)
         g_btn_map[1] = 0; // Xbox B -> GBA A (Confirm)
         g_btn_map[2] = 0; // Xbox X -> GBA A (Confirm)
         g_btn_map[3] = 1; // Xbox Y -> GBA B (Dash)
+        g_current_preset = 1;
     } else if (!_stricmp(layout, "classic")) {
         g_btn_map[2] = 2; // Leave X as X
         g_btn_map[3] = 3; // Leave Y as Y
+        g_current_preset = 3;
+    } else {
+        g_current_preset = 0;
     }
 
     char val[64];
@@ -204,6 +355,9 @@ static void load_gamepad_config(void) {
     GetPrivateProfileStringA("gamepad1", "trigger_r", "true", trig_r, sizeof(trig_r), ini_path);
     g_trigger_l_target = parse_trigger_target(trig_l, 9);
     g_trigger_r_target = parse_trigger_target(trig_r, 10);
+    if (g_trigger_r_target == 1 && g_current_preset == 0) {
+        g_current_preset = 2; // Modern Trigger Dash
+    }
 
     char log_buf[256];
     snprintf(log_buf, sizeof(log_buf),
@@ -213,19 +367,30 @@ static void load_gamepad_config(void) {
     log_hotkey(log_buf);
 }
 
+// GBA Action Row indices (0 to 9 in launcher table)
+// Row 0: Confirm (A) -> GBA target 0
+// Row 1: Cancel / Run (B) -> GBA target 1
+// Row 2: Select -> GBA target 4
+// Row 3: Start -> GBA target 6
+// Row 4: D-Pad Right -> GBA target 14
+// Row 5: D-Pad Left -> GBA target 13
+// Row 6: D-Pad Up -> GBA target 11
+// Row 7: D-Pad Down -> GBA target 12
+// Row 8: R Shoulder -> GBA target 10
+// Row 9: L Shoulder -> GBA target 9
 static const uint8_t s_capture_to_gba[12] = {
-    0,   // 0: A
-    1,   // 1: B
-    1,   // 2: X -> B (Dash)
-    0,   // 3: Y -> A (Confirm)
-    9,   // 4: L (LB)
-    10,  // 5: R (RB)
-    6,   // 6: Start
-    4,   // 7: Select (Back)
-    11,  // 8: Up
-    12,  // 9: Down
-    13,  // 10: Left
-    14   // 11: Right
+    0,   // Row 0: Confirm (A)
+    1,   // Row 1: Cancel / Run (B)
+    4,   // Row 2: Select
+    6,   // Row 3: Start
+    14,  // Row 4: D-Pad Right
+    13,  // Row 5: D-Pad Left
+    11,  // Row 6: D-Pad Up
+    12,  // Row 7: D-Pad Down
+    10,  // Row 8: R Shoulder
+    9,   // Row 9: L Shoulder
+    255, // Row 10: Reserved
+    255  // Row 11: Reserved
 };
 
 static const char* target_to_str(uint8_t target) {
@@ -257,6 +422,11 @@ static void save_gamepad_config(void) {
     char ini_path[MAX_PATH];
     snprintf(ini_path, MAX_PATH, "%s\\keybinds.ini", exe_dir);
 
+    const char* layout_str = "xbox";
+    if (g_current_preset == 1) layout_str = "nintendo";
+    else if (g_current_preset == 3) layout_str = "classic";
+
+    WritePrivateProfileStringA("gamepad1", "layout", layout_str, ini_path);
     WritePrivateProfileStringA("gamepad1", "a", target_to_str(g_btn_map[0]), ini_path);
     WritePrivateProfileStringA("gamepad1", "b", target_to_str(g_btn_map[1]), ini_path);
     WritePrivateProfileStringA("gamepad1", "x", target_to_str(g_btn_map[2]), ini_path);
@@ -276,7 +446,11 @@ static void save_gamepad_config(void) {
         WritePrivateProfileStringA("gamepad1", "trigger_l", "none", ini_path);
     }
     if (g_trigger_r_target >= 0) {
-        WritePrivateProfileStringA("gamepad1", "trigger_r", target_to_str((uint8_t)g_trigger_r_target), ini_path);
+        if (g_trigger_r_target == 1) {
+            WritePrivateProfileStringA("gamepad1", "trigger_r", "dash", ini_path);
+        } else {
+            WritePrivateProfileStringA("gamepad1", "trigger_r", target_to_str((uint8_t)g_trigger_r_target), ini_path);
+        }
     } else {
         WritePrivateProfileStringA("gamepad1", "trigger_r", "none", ini_path);
     }
@@ -289,8 +463,69 @@ static void save_gamepad_config(void) {
     log_hotkey("[GAMEPAD] Saved custom bindings to keybinds.ini [gamepad1]");
 }
 
+static const char* get_action_label(int act_idx) {
+    uint8_t gba_act = s_capture_to_gba[act_idx];
+    if (gba_act == 255) return "(none)";
+
+    if (act_idx == 8 && g_trigger_r_target == 10) return "RB / RT";
+    if (act_idx == 9 && g_trigger_l_target == 9) return "LB / LT";
+    if (act_idx == 1 && g_trigger_r_target == 1) return "B / RT";
+
+    for (int p = 0; p < 15; p++) {
+        if (g_btn_map[p] == gba_act) {
+            switch (p) {
+                case 0: return "A";
+                case 1: return "B";
+                case 2: return "X";
+                case 3: return "Y";
+                case 4: return "Back";
+                case 6: return "Start";
+                case 9: return "LB";
+                case 10: return "RB";
+                case 11: return "DpadUp";
+                case 12: return "DpadDown";
+                case 13: return "DpadLeft";
+                case 14: return "DpadRight";
+                default: break;
+            }
+        }
+    }
+    return "(unbound)";
+}
+
+static void sync_launcher_gamepad_strings(void* m) {
+    if (!m) return;
+    uint8_t* pm = (uint8_t*)m;
+    for (int i = 0; i < 10; i++) {
+        const char* label = get_action_label(i);
+        char* dst = (char*)(pm + (i * 32) + 0xf1cc);
+        strncpy(dst, label, 31);
+        dst[31] = '\0';
+        *(uint8_t*)(pm + (i * 32) + 0xf1c0 + 0xc) = 1;
+    }
+}
+
 static void* g_active_launcher_model = NULL;
 static int g_active_capture_btn = -1;
+
+void Hooked_launcher_model_begin_capture_gamepad(void* m, int b) {
+    if (!m || b > 11) return;
+    g_active_launcher_model = m;
+    g_active_capture_btn = b;
+
+    uint8_t* pm = (uint8_t*)m;
+    pm[0xc1a8] = 1;
+    *(uint32_t*)(pm + 0xc1ac) = (uint32_t)b;
+    pm[0xc1b0] = 0;
+    pm[0xc1b4] = 1;
+    pm[0xc1bc] = 1;
+    pm[0xc1bd] = 0;
+    pm[0xc1c4] = 0;
+
+    char log[128];
+    snprintf(log, sizeof(log), "[LAUNCHER] Gamepad capture started for action row %d", b);
+    log_hotkey(log);
+}
 
 void Hooked_launcher_model_begin_capture(void* m, int b) {
     if (!m || b > 11) return;
@@ -305,25 +540,158 @@ void Hooked_launcher_model_begin_capture(void* m, int b) {
     *(uint32_t*)(pm + 0xc1c0) = (uint32_t)b;
 
     char log[128];
-    snprintf(log, sizeof(log), "[LAUNCHER] Capture started for button index %d", b);
+    snprintf(log, sizeof(log), "[LAUNCHER] Keyboard capture started for button index %d", b);
     log_hotkey(log);
 }
 
-static void install_launcher_capture_hook(uint8_t* pBase) {
-    uint8_t* pTarget = pBase + 0x3a48710;
-    if (pTarget[0] == 0x48 && pTarget[1] == 0x85 && pTarget[2] == 0xc9 && pTarget[3] == 0x74 && pTarget[4] == 0x27) {
+typedef void (*pfn_launcher_model_frame)(void* m);
+static pfn_launcher_model_frame g_trampoline_launcher_model_frame = NULL;
+static uint8_t g_tramp_frame_buf[32];
+
+void Hooked_launcher_model_frame(void* m) {
+    if (m) {
+        g_active_launcher_model = m;
+        uint8_t* pm = (uint8_t*)m;
+        // When input source is Gamepad (index 2)
+        if (*(uint32_t*)(pm + 0x4ea8) == 2) {
+            pm[0x6b40] = 1;
+            if (pm[0xc1a8] == 0 && pm[0xc1bd] == 0) {
+                sync_launcher_gamepad_strings(m);
+            }
+        }
+    }
+    if (g_trampoline_launcher_model_frame) {
+        g_trampoline_launcher_model_frame(m);
+    }
+}
+
+static void apply_preset(int preset) {
+    g_current_preset = (preset % 4 + 4) % 4;
+    for (int i = 0; i < 15; i++) g_btn_map[i] = (uint8_t)i;
+
+    switch (g_current_preset) {
+        case 0: // Xbox / PC Standard
+            g_btn_map[2] = 1; // X -> Dash (B)
+            g_btn_map[3] = 0; // Y -> Confirm (A)
+            g_trigger_l_target = 9;  // LT -> L
+            g_trigger_r_target = 10; // RT -> R
+            snprintf(g_toast_msg, sizeof(g_toast_msg), "PRESET: Xbox Standard (A=Confirm, B/X=Dash, RT=R)");
+            break;
+        case 1: // Nintendo / Switch Pro
+            g_btn_map[0] = 1; // A -> Dash (B)
+            g_btn_map[1] = 0; // B -> Confirm (A)
+            g_btn_map[2] = 0; // X -> Confirm (A)
+            g_btn_map[3] = 1; // Y -> Dash (B)
+            g_trigger_l_target = 9;
+            g_trigger_r_target = 10;
+            snprintf(g_toast_msg, sizeof(g_toast_msg), "PRESET: Nintendo Switch (B=Confirm, A/Y=Dash)");
+            break;
+        case 2: // Modern Trigger Dash
+            g_btn_map[2] = 1; // X -> Dash
+            g_btn_map[3] = 0; // Y -> Confirm
+            g_trigger_l_target = 9;
+            g_trigger_r_target = 1;  // RT -> Dash (B)!
+            snprintf(g_toast_msg, sizeof(g_toast_msg), "PRESET: Trigger Dash (A=Confirm, B=Cancel, RT=Dash!)");
+            break;
+        case 3: // Classic 1:1 Hardware
+            g_trigger_l_target = 9;
+            g_trigger_r_target = 10;
+            snprintf(g_toast_msg, sizeof(g_toast_msg), "PRESET: Classic 1:1 Hardware (A=A, B=B, X=X, Y=Y)");
+            break;
+    }
+    save_gamepad_config();
+    if (g_active_launcher_model) {
+        sync_launcher_gamepad_strings(g_active_launcher_model);
+    }
+    g_toast_expiry = GetTickCount() + 3500;
+    log_hotkey(g_toast_msg);
+}
+
+static void install_launcher_hooks(uint8_t* pBase) {
+    // 1. Unhide GAMEPAD BINDINGS table UI (NOP out je 0x3948744)
+    uint8_t* pPadBindsJump = pBase + 0x394ab40;
+    if (pPadBindsJump[0] == 0x0f && pPadBindsJump[1] == 0x84) {
         DWORD oldProtect;
-        if (VirtualProtect(pTarget, 14, PAGE_EXECUTE_READWRITE, &oldProtect)) {
-            pTarget[0] = 0xFF;
-            pTarget[1] = 0x25;
-            pTarget[2] = 0x00;
-            pTarget[3] = 0x00;
-            pTarget[4] = 0x00;
-            pTarget[5] = 0x00;
-            *(uint64_t*)(pTarget + 6) = (uint64_t)(uintptr_t)Hooked_launcher_model_begin_capture;
-            VirtualProtect(pTarget, 14, oldProtect, &oldProtect);
+        if (VirtualProtect(pPadBindsJump, 6, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            memset(pPadBindsJump, 0x90, 6);
+            VirtualProtect(pPadBindsJump, 6, oldProtect, &oldProtect);
+            log_hotkey("[LAUNCHER] Unlocked GAMEPAD BINDINGS table");
+        }
+    }
+
+    // 2. Unhide Gamepad Profile options header (NOP out je 0x3948f79)
+    uint8_t* pPadOptsJump = pBase + 0x394a22d;
+    if (pPadOptsJump[0] == 0x0f && pPadOptsJump[1] == 0x84) {
+        DWORD oldProtect;
+        if (VirtualProtect(pPadOptsJump, 6, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            memset(pPadOptsJump, 0x90, 6);
+            VirtualProtect(pPadOptsJump, 6, oldProtect, &oldProtect);
+            log_hotkey("[LAUNCHER] Unlocked Gamepad Profile header");
+        }
+    }
+
+    // 3. Hook launcher_model_begin_capture_gamepad at 0x3a47f80
+    uint8_t* pPadCapTarget = pBase + 0x3a47f80;
+    if (pPadCapTarget[0] == 0xb8 && pPadCapTarget[1] == 0x0c) {
+        DWORD oldProtect;
+        if (VirtualProtect(pPadCapTarget, 15, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            pPadCapTarget[0] = 0xFF;
+            pPadCapTarget[1] = 0x25;
+            pPadCapTarget[2] = 0x00;
+            pPadCapTarget[3] = 0x00;
+            pPadCapTarget[4] = 0x00;
+            pPadCapTarget[5] = 0x00;
+            *(uint64_t*)(pPadCapTarget + 6) = (uint64_t)(uintptr_t)Hooked_launcher_model_begin_capture_gamepad;
+            pPadCapTarget[14] = 0x90;
+            VirtualProtect(pPadCapTarget, 15, oldProtect, &oldProtect);
+            log_hotkey("[LAUNCHER] Hooked launcher_model_begin_capture_gamepad successfully");
+        }
+    }
+
+    // 4. Hook launcher_model_begin_capture at 0x3a48710
+    uint8_t* pKeyCapTarget = pBase + 0x3a48710;
+    if (pKeyCapTarget[0] == 0x48 && pKeyCapTarget[1] == 0x85 && pKeyCapTarget[2] == 0xc9 && pKeyCapTarget[3] == 0x74 && pKeyCapTarget[4] == 0x27) {
+        DWORD oldProtect;
+        if (VirtualProtect(pKeyCapTarget, 14, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            pKeyCapTarget[0] = 0xFF;
+            pKeyCapTarget[1] = 0x25;
+            pKeyCapTarget[2] = 0x00;
+            pKeyCapTarget[3] = 0x00;
+            pKeyCapTarget[4] = 0x00;
+            pKeyCapTarget[5] = 0x00;
+            *(uint64_t*)(pKeyCapTarget + 6) = (uint64_t)(uintptr_t)Hooked_launcher_model_begin_capture;
+            VirtualProtect(pKeyCapTarget, 14, oldProtect, &oldProtect);
             log_hotkey("[LAUNCHER] Hooked launcher_model_begin_capture successfully");
         }
+    }
+
+    // 5. Hook launcher_model_frame at 0x3a48b00 with trampoline
+    uint8_t* pFrameTarget = pBase + 0x3a48b00;
+    if (pFrameTarget[0] == 0x53 && pFrameTarget[1] == 0x48 && pFrameTarget[2] == 0x83 && pFrameTarget[3] == 0xec && pFrameTarget[4] == 0x60) {
+        memcpy(g_tramp_frame_buf, pFrameTarget, 15);
+        g_tramp_frame_buf[15] = 0xFF;
+        g_tramp_frame_buf[16] = 0x25;
+        g_tramp_frame_buf[17] = 0x00;
+        g_tramp_frame_buf[18] = 0x00;
+        g_tramp_frame_buf[19] = 0x00;
+        g_tramp_frame_buf[20] = 0x00;
+        *(uint64_t*)(g_tramp_frame_buf + 21) = (uint64_t)(uintptr_t)(pFrameTarget + 15);
+
+        DWORD oldProtect;
+        VirtualProtect(g_tramp_frame_buf, sizeof(g_tramp_frame_buf), PAGE_EXECUTE_READWRITE, &oldProtect);
+        g_trampoline_launcher_model_frame = (pfn_launcher_model_frame)(uintptr_t)g_tramp_frame_buf;
+
+        VirtualProtect(pFrameTarget, 15, PAGE_EXECUTE_READWRITE, &oldProtect);
+        pFrameTarget[0] = 0xFF;
+        pFrameTarget[1] = 0x25;
+        pFrameTarget[2] = 0x00;
+        pFrameTarget[3] = 0x00;
+        pFrameTarget[4] = 0x00;
+        pFrameTarget[5] = 0x00;
+        *(uint64_t*)(pFrameTarget + 6) = (uint64_t)(uintptr_t)Hooked_launcher_model_frame;
+        pFrameTarget[14] = 0x90;
+        VirtualProtect(pFrameTarget, 15, oldProtect, &oldProtect);
+        log_hotkey("[LAUNCHER] Hooked launcher_model_frame successfully with trampoline");
     }
 }
 
@@ -337,21 +705,39 @@ static int fetch_next_event(void* ev_ptr, int call_type, int timeout) {
     return Hooked_SDL_PollEvent(ev_ptr);
 }
 
+static int s_back_held = 0;
+static int s_start_held = 0;
+
 static int handle_sdl_event_interception(void* ev_ptr, int call_type, int timeout) {
     if (!ev_ptr) return 0;
 
     SDL_Event_t* event = (SDL_Event_t*)ev_ptr;
 
-    // Check if launcher is currently capturing a keybind
+    // Check if launcher is currently capturing a binding
     int is_capturing = 0;
+    int is_pad_capturing = 0;
     if (g_active_launcher_model) {
         uint8_t* pm = (uint8_t*)g_active_launcher_model;
         if (pm[0xc1bd] == 1) {
             is_capturing = 1;
         }
+        if (pm[0xc1a8] == 1) {
+            is_capturing = 1;
+            is_pad_capturing = 1;
+        }
     }
 
     if (is_capturing) {
+        // Allow Escape key to cancel capture mode cleanly
+        if (event->type == 0x300 && event->key.keysym.sym == 27) {
+            uint8_t* pm = (uint8_t*)g_active_launcher_model;
+            pm[0xc1a8] = 0;
+            pm[0xc1b4] = 0;
+            pm[0xc1bd] = 0;
+            g_active_capture_btn = -1;
+            return fetch_next_event(ev_ptr, call_type, timeout);
+        }
+
         // Drop button releases while in capture mode
         if (event->type == 0x652 || event->type == 0x604) {
             return 0;
@@ -378,73 +764,94 @@ static int handle_sdl_event_interception(void* ev_ptr, int call_type, int timeou
         }
 
         if (is_pad_press) {
+            uint8_t* pm = (uint8_t*)g_active_launcher_model;
             int btn_idx = g_active_capture_btn;
             if (btn_idx < 0 || btn_idx > 11) {
-                btn_idx = (int)*(uint32_t*)(((uint8_t*)g_active_launcher_model) + 0xc1c0);
+                if (is_pad_capturing) {
+                    btn_idx = (int)*(uint32_t*)(pm + 0xc1ac);
+                } else {
+                    btn_idx = (int)*(uint32_t*)(pm + 0xc1c0);
+                }
             }
             if (btn_idx < 0 || btn_idx > 11) btn_idx = 0;
 
             uint8_t gba_action = s_capture_to_gba[btn_idx];
 
-            int32_t scancode = 4;
-            int32_t sym = 'a';
-
             if (is_trigger) {
                 if (trigger_axis == 4) {
                     g_trigger_l_target = gba_action;
-                    scancode = 20; // SDL_SCANCODE_Q
-                    sym = 'q';
                 } else {
                     g_trigger_r_target = gba_action;
-                    scancode = 8;  // SDL_SCANCODE_E
-                    sym = 'e';
                 }
             } else {
                 if (pad_btn < 15) {
                     g_btn_map[pad_btn] = gba_action;
                 }
-                switch (pad_btn) {
-                    case 0:  scancode = 4;   sym = 'a'; break; // A
-                    case 1:  scancode = 5;   sym = 'b'; break; // B
-                    case 2:  scancode = 27;  sym = 'x'; break; // X
-                    case 3:  scancode = 28;  sym = 'y'; break; // Y
-                    case 4:  scancode = 229; sym = 1073742053; break; // Back -> Right Shift
-                    case 5:  scancode = 229; sym = 1073742053; break; // Guide
-                    case 6:  scancode = 40;  sym = '\r'; break; // Start -> Return
-                    case 7:  scancode = 43;  sym = '\t'; break; // L3 -> Tab
-                    case 8:  scancode = 44;  sym = ' '; break;  // R3 -> Space
-                    case 9:  scancode = 15;  sym = 'l'; break; // LB -> L
-                    case 10: scancode = 21;  sym = 'r'; break; // RB -> R
-                    case 11: scancode = 82;  sym = 1073741906; break; // Up
-                    case 12: scancode = 81;  sym = 1073741905; break; // Down
-                    case 13: scancode = 80;  sym = 1073741904; break; // Left
-                    case 14: scancode = 79;  sym = 1073741903; break; // Right
-                    default: scancode = 4;   sym = 'a'; break;
-                }
             }
 
             save_gamepad_config();
+            sync_launcher_gamepad_strings(g_active_launcher_model);
 
-            // Synthesize SDL_KEYDOWN into ev_ptr for launcher try_capture
-            memset(ev_ptr, 0, 56);
-            *(uint32_t*)((uint8_t*)ev_ptr + 0) = 0x300; // SDL_KEYDOWN
-            *(uint32_t*)((uint8_t*)ev_ptr + 4) = GetTickCount();
-            *((uint8_t*)ev_ptr + 12) = 1; // state = pressed
-            *((uint8_t*)ev_ptr + 13) = 0; // repeat = 0
-            *(int32_t*)((uint8_t*)ev_ptr + 16) = scancode; // scancode
-            *(int32_t*)((uint8_t*)ev_ptr + 20) = sym;      // sym
+            // Clear capture flags
+            pm[0xc1a8] = 0;
+            pm[0xc1b4] = 0;
+            pm[0xc1bd] = 0;
+            g_active_capture_btn = -1;
 
             char log_buf[128];
             snprintf(log_buf, sizeof(log_buf),
-                "[LAUNCHER] Controller captured btn_idx=%d (GBA %d) -> scancode=%d, sym=%d",
-                btn_idx, gba_action, scancode, sym);
+                "[LAUNCHER] Controller captured row=%d -> GBA action=%d", btn_idx, gba_action);
             log_hotkey(log_buf);
 
-            return 1;
+            // If keyboard capture was active, synthesize keypress so keyboard column accepts it
+            if (!is_pad_capturing) {
+                int32_t scancode = 4;
+                int32_t sym = 'a';
+                if (!is_trigger) {
+                    switch (pad_btn) {
+                        case 0:  scancode = 4;   sym = 'a'; break;
+                        case 1:  scancode = 5;   sym = 'b'; break;
+                        case 2:  scancode = 27;  sym = 'x'; break;
+                        case 3:  scancode = 28;  sym = 'y'; break;
+                        case 4:  scancode = 229; sym = 1073742053; break;
+                        case 6:  scancode = 40;  sym = '\r'; break;
+                        case 9:  scancode = 15;  sym = 'l'; break;
+                        case 10: scancode = 21;  sym = 'r'; break;
+                        default: break;
+                    }
+                }
+                memset(ev_ptr, 0, 56);
+                *(uint32_t*)((uint8_t*)ev_ptr + 0) = 0x300; // SDL_KEYDOWN
+                *(uint32_t*)((uint8_t*)ev_ptr + 4) = GetTickCount();
+                *((uint8_t*)ev_ptr + 12) = 1;
+                *((uint8_t*)ev_ptr + 13) = 0;
+                *(int32_t*)((uint8_t*)ev_ptr + 16) = scancode;
+                *(int32_t*)((uint8_t*)ev_ptr + 20) = sym;
+                return 1;
+            }
+
+            // Drop event so launcher finishes capture cleanly
+            return fetch_next_event(ev_ptr, call_type, timeout);
         }
     }
 
     load_gamepad_config();
+
+    // Check in-game controller hotkeys: Xbox Guide (5) or Back+Start (4+6)
+    if (event->type == 0x651) { // SDL_CONTROLLERBUTTONDOWN
+        uint8_t pBtn = *((uint8_t*)ev_ptr + 12);
+        if (pBtn == 4) s_back_held = 1;
+        if (pBtn == 6) s_start_held = 1;
+
+        if (pBtn == 5 || (s_back_held && pBtn == 6) || (s_start_held && pBtn == 4)) { // Guide OR Back+Start
+            apply_preset(g_current_preset + 1);
+            return fetch_next_event(ev_ptr, call_type, timeout);
+        }
+    } else if (event->type == 0x652) { // SDL_CONTROLLERBUTTONUP
+        uint8_t pBtn = *((uint8_t*)ev_ptr + 12);
+        if (pBtn == 4) s_back_held = 0;
+        if (pBtn == 6) s_start_held = 0;
+    }
 
     // Gamepad button remapping: SDL_CONTROLLERBUTTONDOWN (0x651) or SDL_CONTROLLERBUTTONUP (0x652)
     if (event->type == 0x651 || event->type == 0x652) {
@@ -504,12 +911,22 @@ static int handle_sdl_event_interception(void* ev_ptr, int call_type, int timeou
         uint32_t sym = (uint32_t)event->key.keysym.sym;
         uint32_t scancode = event->key.keysym.scancode;
 
+        // F9: Quick Controller Preset Switcher
+        if (sym == 0x40000042 || scancode == 66) {
+            if (event->type == 0x300 && !event->key.repeat) {
+                apply_preset(g_current_preset + 1);
+            }
+            return fetch_next_event(ev_ptr, call_type, timeout);
+        }
+
         // F10: Toggle decorative bezel border on/off (Clean Fullscreen mode)
         if (sym == 0x40000043 || scancode == 67) {
             if (event->type == 0x300) {
                 if (event->key.repeat == 0) {
                     load_bezel_config();
                     g_bezel_enabled = !g_bezel_enabled;
+                    snprintf(g_toast_msg, sizeof(g_toast_msg), g_bezel_enabled ? "BEZEL: Custom Border Active (F10 to toggle)" : "BEZEL: Clean Fullscreen (No Borders)");
+                    g_toast_expiry = GetTickCount() + 3000;
                     log_hotkey(g_bezel_enabled ? "[HOTKEY] F10 pressed -> Bezel Borders Enabled" : "[HOTKEY] F10 pressed -> Clean Fullscreen (No Borders) Enabled");
                 }
             }
@@ -664,7 +1081,7 @@ static void load_bezel_pixels(void) {
 
 static int Hooked_SDL_RenderCopy(SDL_Renderer* renderer, SDL_Texture* texture, const SDL_Rect* srcrect, const SDL_Rect* dstrect) {
     load_bezel_config();
-    if (g_bezel_enabled && texture != g_tex_bezel) {
+    if (g_bezel_enabled && texture != g_tex_bezel && texture != g_tex_toast) {
         int sw = 0, sh = 0;
         if (g_real_GetRendererOutputSize) g_real_GetRendererOutputSize(renderer, &sw, &sh);
         if (sw > 0 && sh > 0) {
@@ -685,6 +1102,8 @@ void Hooked_SDL_RenderPresent(SDL_Renderer* renderer) {
     if (renderer != g_last_renderer) {
         if (g_tex_bezel && g_real_DestroyTexture) g_real_DestroyTexture(g_tex_bezel);
         g_tex_bezel = NULL;
+        if (g_tex_toast && g_real_DestroyTexture) g_real_DestroyTexture(g_tex_toast);
+        g_tex_toast = NULL;
         g_last_renderer = renderer;
     }
     
@@ -729,6 +1148,32 @@ void Hooked_SDL_RenderPresent(SDL_Renderer* renderer) {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // On-screen Toast notification
+    if (GetTickCount() < g_toast_expiry && g_real_GetRendererOutputSize && g_real_RenderCopy) {
+        if (!g_tex_toast && g_real_CreateTexture) {
+            g_tex_toast = g_real_CreateTexture(renderer, 0x16762004, 0, TOAST_W, TOAST_H);
+            if (g_tex_toast && g_real_SetTextureBlendMode) {
+                g_real_SetTextureBlendMode(g_tex_toast, 1);
+            }
+        }
+        if (g_tex_toast && g_real_UpdateTexture) {
+            int screen_w = 0, screen_h = 0;
+            g_real_GetRendererOutputSize(renderer, &screen_w, &screen_h);
+            if (screen_w > 0 && screen_h > 0) {
+                draw_toast_text(g_toast_msg);
+                g_real_UpdateTexture(g_tex_toast, NULL, g_toast_pixels, TOAST_W * 4);
+                SDL_Rect dst_toast;
+                dst_toast.x = (screen_w - TOAST_W) / 2;
+                dst_toast.y = 25;
+                dst_toast.w = TOAST_W;
+                dst_toast.h = TOAST_H;
+                if (g_real_RenderSetViewport) g_real_RenderSetViewport(renderer, NULL);
+                if (g_real_RenderSetClipRect) g_real_RenderSetClipRect(renderer, NULL);
+                g_real_RenderCopy(renderer, g_tex_toast, NULL, &dst_toast);
             }
         }
     }
@@ -789,8 +1234,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
                 }
             }
 
-            // Install hook on launcher_model_begin_capture
-            install_launcher_capture_hook(pBase);
+            // Install all launcher controls and capture hooks
+            install_launcher_hooks(pBase);
         }
     }
     return TRUE;
