@@ -138,10 +138,17 @@ cmake --build build-win --target Mother3Recomp
 
 ## 7. Credits & Disclaimers
 
-- **MOTHER 3** © 2006 Nintendo / SHIGESATO ITOI / Brownie Brown / HAL Laboratory, Inc.
-- **English Fan Translation**: MOTHER 3 Fan Translation Team ([mother3.fobby.net](http://mother3.fobby.net/)). Please support official releases and merchandise.
-- **High-Quality Sound Mixing Mod**: Summer Dragonfly and ipatix ([Romhacking.net #6951](https://www.romhacking.net/hacks/6951/) / [MusicTheorist](https://github.com/MusicTheorist/MOTHER-3-HQ-Audio)).
-- **Recompilation Technology**: Powered by `gbarecomp` and `recomp-ui` by Matthew Stanley ([mstan](https://github.com/mstan)), licensed under PolyForm Noncommercial 1.0.0.
-- **Third-Party Libraries**: SDL2 (zlib), TinyCC (LGPL), Dear ImGui (MIT).
+A full, detailed breakdown of all contributors, authors, libraries, and tools is available in [**`CREDITS.md`**](CREDITS.md).
+
+- **MOTHER 3**: © 2006 Nintendo / SHIGESATO ITOI / Brownie Brown / HAL Laboratory, Inc. Music by Shogo Sakai.
+- **English Fan Translation**: The MOTHER 3 Fan Translation Team ([mother3.fobby.net](http://mother3.fobby.net/)) — Clyde "Tomato" Mandelin, Jeffman, Reid Young, and contributors.
+- **High-Quality Sound Mixing Mod**: Summer Dragonfly (@MusicTheorist) and ipatix ([Romhacking.net #6951](https://www.romhacking.net/hacks/6951/) / [MusicTheorist/MOTHER-3-HQ-Audio](https://github.com/MusicTheorist/MOTHER-3-HQ-Audio)), with foundational mixing code by Haruki "Bon" Kodera (Camelot) and decompilation support from Kurausukun & theo3.
+- **Recompilation Technology**: Powered by `gbarecomp` and `recomp-ui` by Matthew Stanley ([@mstan](https://github.com/mstan)), licensed under PolyForm Noncommercial 1.0.0.
+- **Third-Party Libraries & Runtimes**:
+  - **SDL2**: Sam Lantinga & the SDL Team (zlib license)
+  - **Dear ImGui**: Omar Cornut (MIT license)
+  - **TinyCC**: Fabrice Bellard (LGPL 2.1 license)
+  - **MinGW-w64 / GCC**: The MinGW-w64 Project Team
+- **Patcher Tools & Formats**: Near / byuu for `xkas` and the `UPS` patch specification.
 
 *This repository is a non-commercial, open-source educational preservation project. No commercial ROMs, BIOS files, copyrighted game audio, or Nintendo proprietary code are distributed.*

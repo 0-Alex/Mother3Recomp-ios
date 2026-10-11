@@ -28,8 +28,9 @@ release-stage/
 *.bak*
 _to_delete/
 
-# Toolchain exception
+# Toolchain & Mods exceptions
 !overlay_toolchain/**
+!mods/**
 
 # OS & IDE files
 .DS_Store
