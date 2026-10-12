@@ -1,16 +1,21 @@
-Mother 3 Recomp (English) - Multi-Platform v1.0.2
+Mother 3 Recomp (English) - Multi-Platform v1.0.3
 =================================================
 
-What's New in v1.0.2:
-- Clean Fullscreen / No Borders Mode:
-    * Press F10 at any time during gameplay to toggle between the 1080p
-      Sunset & Party Bezel and Clean Fullscreen (No Borders) mode.
-    * Set "bezel = 0" in config.ini to launch in Clean Fullscreen by default.
-- Display Profile Fix:
-    * Resolved black screen issue when running on "Classic" color profile
-      by adding dynamic blend fallback and direct border-free viewport mode.
-- Linux & Android Ports:
-    * Individual packages now available for Windows, Linux, and Android!
+What's New in v1.0.3:
+- Interactive In-Launcher Gamepad Remapping:
+    * Map Xbox, PlayStation, Switch, and PC controllers directly inside
+      Settings -> Controls with real-time detection and analog trigger support!
+- Native 16-Bit High-Quality Audio Engine:
+    * Direct native recognition for the High-Quality Sound Mixing Mod ROM.
+    * Replaced self-modifying RAM mixer with native C++ HLE 16-bit mixing pipeline,
+      eliminating frame drops and audio crackling on hot audio routines.
+- 100% Native Linux & Steam Deck Fixes:
+    * Fixed ROM verification errors on Linux by bundling recompiled sources and
+      applying translation/UPS patches during the native build.
+    * Added Mother3Recomp.desktop launcher for 1-click launch on SteamOS Desktop.
+- In-Game Preset Switcher & HUD Toast:
+    * Cycle controller layouts mid-game via F9, Xbox Guide, or Back+Start with
+      a crisp on-screen notification toast.
 
 1. Quick Start (Windows):
    - Run "Play Mother 3.cmd" or "Mother3Recomp.exe".
@@ -73,8 +78,8 @@ What's New in v1.0.2:
 - Sleep mode wake: press L + R + Select (C + V + Right Shift or LB + RB + Back).
 
 5. Multi-Platform Downloads:
-- Windows: Mother3Recomp-v1.0.2-windows-x64.zip
-- Linux:   Mother3Recomp-v1.0.2-linux-x86_64.tar.gz
+- Windows: Mother3Recomp-v1.0.3-windows-x64.zip
+- Linux:   Mother3Recomp-v1.0.3-linux-x86_64.tar.gz
 - Android: Mother3Recomp-v1.0.2-android-arm64.apk
 
 Legal Notice:
