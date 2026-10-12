@@ -1246,8 +1246,8 @@ __declspec(dllexport) int SDL_DYNAPI_entry(uint32_t apiver, void *table, uint32_
     
     pfn_dynapi_entry real_entry = (pfn_dynapi_entry)(uintptr_t)GetProcAddress(hHost, "SDL_DYNAPI_entry");
     if (!real_entry) {
-        static const uint8_t kPatDynApi[] = { 0x83, 0xf9, 0x01 };
-        uint8_t* pDyn = resolve_rva_or_pattern((uint8_t*)hHost, 0x3ad8b10, kPatDynApi, "xxx", sizeof(kPatDynApi));
+        static const uint8_t kPatDynApi[] = { 0x48, 0x83, 0xec, 0x28, 0x89, 0xc8, 0x48, 0x89, 0xd1, 0x41, 0x81, 0xf8 };
+        uint8_t* pDyn = resolve_rva_or_pattern((uint8_t*)hHost, 0x3ad8b10, kPatDynApi, "xxxxxxxxxxxx", sizeof(kPatDynApi));
         real_entry = (pfn_dynapi_entry)(uintptr_t)(pDyn ? pDyn : ((uint8_t*)hHost + 0x3ad8b10));
     }
     int res = real_entry(apiver, table, tablesize);
