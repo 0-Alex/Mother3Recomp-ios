@@ -14,8 +14,10 @@ for d in "$stage"/*.dll; do x86_64-w64-mingw32-strip --strip-unneeded "$d"; done
 cp -r "$root/build-win/assets" "$stage/assets"
 cp "$root/assets/img/"*.tga "$stage/assets/img/"
 tmp=$(mktemp -d); (cd "$tmp" && unzip -q "$tcczip"); cp -r "$tmp/tcc" "$stage/overlay_toolchain/tcc"; rm -rf "$tmp"
-for h in src/runtime/overlay_runtime_arm.h src/runtime/overlay_abi.h src/armv4t/runtime_arm_types.h \
-         src/armv4t/runtime_wait_inline.h src/armv4t/runtime_wait_model.h; do cp "$engine/$h" "$stage/overlay_toolchain/include/"; done
+for h in src/runtime/overlay_abi.h src/armv4t/runtime_wait_inline.h src/armv4t/runtime_wait_model.h; do
+  [ -f "$engine/$h" ] && cp "$engine/$h" "$stage/overlay_toolchain/include/"
+done
+cp "$root/overlay_toolchain/include/"*.h "$stage/overlay_toolchain/include/"
 # Runtime config: same as game.toml but with player-relative save path and no dev ROM/BIOS paths.
 python3 - "$root/game.toml" "$stage/game.toml" <<'PY'
 import sys,re

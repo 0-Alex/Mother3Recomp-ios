@@ -6,8 +6,8 @@
 // etc. The only difference is the prelude: here, `g_cpu` is a macro for
 // `(*g_ovl->cpu)` and every runtime_*/bus_*/arm_* name is a static-inline
 // thunk that forwards through the GbaOverlayCallbacks the host installed at
-// overlay_init(). So the DLL has ZERO unresolved host symbols, yet mutates
-// the host's real CPU state through the pointer.
+// overlay_init() (with pure ALU flag/shift/condition helpers inlined directly
+// against g_cpu.cpsr to eliminate indirect pointer calls on every instruction).
 //
 // Identical body + identical semantics is exactly what makes a healed run's
 // per-instruction fingerprint ring byte-identical to the static build.
@@ -45,18 +45,151 @@ static inline void bus_write_u32(uint32_t a, uint32_t v) { g_ovl->bus_write_u32(
 static inline void bus_write_u16(uint32_t a, uint16_t v) { g_ovl->bus_write_u16(a, v); }
 static inline void bus_write_u8 (uint32_t a, uint8_t  v) { g_ovl->bus_write_u8(a, v); }
 
-// ── Condition / shifter / flags ──
-static inline int arm_cond_passes(unsigned c) { return g_ovl->arm_cond_passes(c); }
-static inline uint32_t arm_shift_lsl(uint32_t v, uint32_t n, int sc) { return g_ovl->arm_shift_lsl(v, n, sc); }
-static inline uint32_t arm_shift_lsr(uint32_t v, uint32_t n, int sc) { return g_ovl->arm_shift_lsr(v, n, sc); }
-static inline uint32_t arm_shift_asr(uint32_t v, uint32_t n, int sc) { return g_ovl->arm_shift_asr(v, n, sc); }
-static inline uint32_t arm_shift_ror(uint32_t v, uint32_t n, int sc) { return g_ovl->arm_shift_ror(v, n, sc); }
-static inline void arm_set_nz(uint32_t r) { g_ovl->arm_set_nz(r); }
-static inline void arm_set_nzc_logic(uint32_t r, uint32_t sc) { g_ovl->arm_set_nzc_logic(r, sc); }
-static inline void arm_set_nzcv_add(uint32_t a, uint32_t b, uint32_t r) { g_ovl->arm_set_nzcv_add(a, b, r); }
-static inline void arm_set_nzcv_adc(uint32_t a, uint32_t b, uint32_t ci, uint32_t r) { g_ovl->arm_set_nzcv_adc(a, b, ci, r); }
-static inline void arm_set_nzcv_sub(uint32_t a, uint32_t b, uint32_t r) { g_ovl->arm_set_nzcv_sub(a, b, r); }
-static inline void arm_set_nzcv_sbc(uint32_t a, uint32_t b, uint32_t ci, uint32_t r) { g_ovl->arm_set_nzcv_sbc(a, b, ci, r); }
+// ── Condition / shifter / flags (inlined directly against g_cpu.cpsr) ──
+static inline int arm_cond_passes(unsigned cond) {
+    const uint32_t cpsr = g_cpu.cpsr;
+    const uint32_t n = (cpsr & CPSR_N_BIT) ? 1u : 0u;
+    const uint32_t z = (cpsr & CPSR_Z_BIT) ? 1u : 0u;
+    const uint32_t c = (cpsr & CPSR_C_BIT) ? 1u : 0u;
+    const uint32_t v = (cpsr & CPSR_V_BIT) ? 1u : 0u;
+    switch (cond & 0xFu) {
+        case 0x0: return z != 0u;
+        case 0x1: return z == 0u;
+        case 0x2: return c != 0u;
+        case 0x3: return c == 0u;
+        case 0x4: return n != 0u;
+        case 0x5: return n == 0u;
+        case 0x6: return v != 0u;
+        case 0x7: return v == 0u;
+        case 0x8: return (c != 0u) && (z == 0u);
+        case 0x9: return (c == 0u) || (z != 0u);
+        case 0xA: return n == v;
+        case 0xB: return n != v;
+        case 0xC: return (z == 0u) && (n == v);
+        case 0xD: return (z != 0u) || (n != v);
+        case 0xE: return 1;
+        default:  return 0;
+    }
+}
+
+static inline uint32_t arm_shift_lsl(uint32_t v, uint32_t n, int sc) {
+    if (n == 0u) return v;
+    if (n >= 32u) {
+        if (sc) {
+            uint32_t carry = (n == 32u) ? (v & 1u) : 0u;
+            g_cpu.cpsr = (g_cpu.cpsr & ~CPSR_C_BIT) | (carry ? CPSR_C_BIT : 0u);
+        }
+        return 0u;
+    }
+    if (sc) {
+        uint32_t carry = (v >> (32u - n)) & 1u;
+        g_cpu.cpsr = (g_cpu.cpsr & ~CPSR_C_BIT) | (carry ? CPSR_C_BIT : 0u);
+    }
+    return v << n;
+}
+
+static inline uint32_t arm_shift_lsr(uint32_t v, uint32_t n, int sc) {
+    if (n == 0u) return v;
+    if (n >= 32u) {
+        if (sc) {
+            uint32_t carry = (n == 32u) ? ((v >> 31) & 1u) : 0u;
+            g_cpu.cpsr = (g_cpu.cpsr & ~CPSR_C_BIT) | (carry ? CPSR_C_BIT : 0u);
+        }
+        return 0u;
+    }
+    if (sc) {
+        uint32_t carry = (v >> (n - 1u)) & 1u;
+        g_cpu.cpsr = (g_cpu.cpsr & ~CPSR_C_BIT) | (carry ? CPSR_C_BIT : 0u);
+    }
+    return v >> n;
+}
+
+static inline uint32_t arm_shift_asr(uint32_t v, uint32_t n, int sc) {
+    if (n == 0u) return v;
+    if (n >= 32u) {
+        uint32_t carry = (v >> 31) & 1u;
+        if (sc) {
+            g_cpu.cpsr = (g_cpu.cpsr & ~CPSR_C_BIT) | (carry ? CPSR_C_BIT : 0u);
+        }
+        return carry ? 0xFFFFFFFFu : 0u;
+    }
+    if (sc) {
+        uint32_t carry = (v >> (n - 1u)) & 1u;
+        g_cpu.cpsr = (g_cpu.cpsr & ~CPSR_C_BIT) | (carry ? CPSR_C_BIT : 0u);
+    }
+    return (uint32_t)((int32_t)v >> n);
+}
+
+static inline uint32_t arm_shift_ror(uint32_t v, uint32_t n, int sc) {
+    if (n == 0u) return v;
+    n &= 31u;
+    if (n == 0u) {
+        if (sc) {
+            g_cpu.cpsr = (g_cpu.cpsr & ~CPSR_C_BIT) |
+                         ((v & 0x80000000u) ? CPSR_C_BIT : 0u);
+        }
+        return v;
+    }
+    uint32_t r = (v >> n) | (v << (32u - n));
+    if (sc) {
+        g_cpu.cpsr = (g_cpu.cpsr & ~CPSR_C_BIT) |
+                     ((r & 0x80000000u) ? CPSR_C_BIT : 0u);
+    }
+    return r;
+}
+
+static inline void arm_set_nz(uint32_t r) {
+    uint32_t c = g_cpu.cpsr & ~(CPSR_N_BIT | CPSR_Z_BIT);
+    if (r & 0x80000000u) c |= CPSR_N_BIT;
+    if (r == 0u)         c |= CPSR_Z_BIT;
+    g_cpu.cpsr = c;
+}
+
+static inline void arm_set_nzc_logic(uint32_t r, uint32_t sc) {
+    uint32_t c = g_cpu.cpsr & ~(CPSR_N_BIT | CPSR_Z_BIT | CPSR_C_BIT);
+    if (r & 0x80000000u) c |= CPSR_N_BIT;
+    if (r == 0u)         c |= CPSR_Z_BIT;
+    if (sc)              c |= CPSR_C_BIT;
+    g_cpu.cpsr = c;
+}
+
+static inline void arm_set_nzcv_add(uint32_t a, uint32_t b, uint32_t r) {
+    uint32_t c = g_cpu.cpsr & ~(CPSR_N_BIT | CPSR_Z_BIT | CPSR_C_BIT | CPSR_V_BIT);
+    if (r & 0x80000000u) c |= CPSR_N_BIT;
+    if (r == 0u)         c |= CPSR_Z_BIT;
+    if (r < a)           c |= CPSR_C_BIT;
+    if ((~(a ^ b) & (a ^ r)) & 0x80000000u) c |= CPSR_V_BIT;
+    g_cpu.cpsr = c;
+}
+
+static inline void arm_set_nzcv_adc(uint32_t a, uint32_t b, uint32_t ci, uint32_t r) {
+    uint32_t c = g_cpu.cpsr & ~(CPSR_N_BIT | CPSR_Z_BIT | CPSR_C_BIT | CPSR_V_BIT);
+    if (r & 0x80000000u) c |= CPSR_N_BIT;
+    if (r == 0u)         c |= CPSR_Z_BIT;
+    uint64_t wide = (uint64_t)a + (uint64_t)b + (uint64_t)ci;
+    if (wide >> 32)      c |= CPSR_C_BIT;
+    if ((~(a ^ b) & (a ^ r)) & 0x80000000u) c |= CPSR_V_BIT;
+    g_cpu.cpsr = c;
+}
+
+static inline void arm_set_nzcv_sub(uint32_t a, uint32_t b, uint32_t r) {
+    uint32_t c = g_cpu.cpsr & ~(CPSR_N_BIT | CPSR_Z_BIT | CPSR_C_BIT | CPSR_V_BIT);
+    if (r & 0x80000000u) c |= CPSR_N_BIT;
+    if (r == 0u)         c |= CPSR_Z_BIT;
+    if (a >= b)          c |= CPSR_C_BIT;
+    if (((a ^ b) & (a ^ r)) & 0x80000000u) c |= CPSR_V_BIT;
+    g_cpu.cpsr = c;
+}
+
+static inline void arm_set_nzcv_sbc(uint32_t a, uint32_t b, uint32_t ci, uint32_t r) {
+    uint32_t c = g_cpu.cpsr & ~(CPSR_N_BIT | CPSR_Z_BIT | CPSR_C_BIT | CPSR_V_BIT);
+    if (r & 0x80000000u) c |= CPSR_N_BIT;
+    if (r == 0u)         c |= CPSR_Z_BIT;
+    uint64_t wide = (uint64_t)a + (uint64_t)(~b & 0xFFFFFFFFu) + (uint64_t)ci;
+    if (wide >> 32)      c |= CPSR_C_BIT;
+    if (((a ^ b) & (a ^ r)) & 0x80000000u) c |= CPSR_V_BIT;
+    g_cpu.cpsr = c;
+}
 
 // ── Dispatch / call-return ──
 static inline void runtime_dispatch(uint32_t pc) { g_ovl->runtime_dispatch(pc); }

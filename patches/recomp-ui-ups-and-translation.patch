@@ -1,8 +1,8 @@
 diff --git a/src/common/backends/imgui/launcher_imgui.cpp b/src/common/backends/imgui/launcher_imgui.cpp
-index cf8cf35..8597c2f 100644
+index cbae6e9..3df9a46 100644
 --- a/src/common/backends/imgui/launcher_imgui.cpp
 +++ b/src/common/backends/imgui/launcher_imgui.cpp
-@@ -2228,6 +2228,12 @@ void draw_game_panel(LauncherModel* m, const LauncherTheme& th, bool fill_h = fa
+@@ -2241,6 +2241,12 @@ void draw_game_panel(LauncherModel* m, const LauncherTheme& th, bool fill_h = fa
          state_mark(verified, th);
          ImGui::SameLine(0, px(6));
          ImGui::TextColored(verified ? col(th.good) : col(th.warn), "%s", line);
@@ -15,7 +15,7 @@ index cf8cf35..8597c2f 100644
      }
      ImGui::Dummy(ImVec2(0, px(10)));
  
-@@ -12336,7 +12342,7 @@ static void draw_rom_patch(LauncherModel* m, const LauncherTheme& th) {
+@@ -12352,7 +12358,7 @@ static void draw_rom_patch(LauncherModel* m, const LauncherTheme& th) {
          ImGui::SameLine(ImGui::GetContentRegionAvail().x - browse_w - clear_w -
                          px(8));
          if (ImGui::Button(ui_text("Browse..."), ImVec2(browse_w, px(28)))) {
@@ -24,7 +24,7 @@ index cf8cf35..8597c2f 100644
                           "ROM patches", [m](const char* path) {
                               if (path) launcher_model_set_rom_patch(m, path);
                           });
-@@ -14042,7 +14048,8 @@ void draw_ui(LauncherModel* m, const LauncherTheme& th, int logical_w, int logic
+@@ -14058,7 +14064,8 @@ void draw_ui(LauncherModel* m, const LauncherTheme& th, int logical_w, int logic
          const float right = ImGui::GetWindowContentRegionMax().x;
          const float y = hdr_top + px(6.0f);
          if (m->view == LNG_VIEW_DASHBOARD) {
@@ -34,7 +34,7 @@ index cf8cf35..8597c2f 100644
                                (m->has_assist_tools ? 1 : 0) +
                                ((m->credits_text && m->credits_text[0]) ? 1 : 0);
              const float w = px(110.0f);
-@@ -14050,9 +14057,9 @@ void draw_ui(LauncherModel* m, const LauncherTheme& th, int logical_w, int logic
+@@ -14066,9 +14073,9 @@ void draw_ui(LauncherModel* m, const LauncherTheme& th, int logical_w, int logic
              ImGui::SetCursorPos(ImVec2(right - total, y));
              if (ImGui::Button(ui_text("Settings"), ImVec2(w, px(34))))
                  launcher_model_set_view(m, LNG_VIEW_SETTINGS);
@@ -149,7 +149,7 @@ index 4052160..3d2e9c5 100644
                       const uint8_t* patch, size_t patch_len,
                       uint8_t** out_data, size_t* out_len);
 diff --git a/src/common/launcher_model.c b/src/common/launcher_model.c
-index 0e22e75..eefee5d 100644
+index acb6db0..7506569 100644
 --- a/src/common/launcher_model.c
 +++ b/src/common/launcher_model.c
 @@ -580,6 +580,7 @@ void launcher_model_init(LauncherModel* m,
@@ -182,6 +182,28 @@ index 0e22e75..eefee5d 100644
      if (m->profile && m->profile->verify.mode == 1) {
          /* Disc systems: reject none/bad; warn (2) and ok (1) are playable. */
          if (m->verify.verdict == 0 || m->verify.verdict == 3) return false;
+@@ -4152,8 +4163,19 @@ bool launcher_model_prepare_rom_patch(LauncherModel* m) {
+     recompui_sha1_compute(output, output_len, output_sha);
+     recompui_sha1_hex(output_sha, output_hex);
+     free(patch);
+-    if (m->rom_patch_required_sha1 && m->rom_patch_required_sha1[0] &&
+-        strcmp(output_hex, m->rom_patch_required_sha1) != 0) {
++    bool patch_sha_ok = !m->rom_patch_required_sha1 || !m->rom_patch_required_sha1[0] ||
++                        strcmp(output_hex, m->rom_patch_required_sha1) == 0;
++    if (!patch_sha_ok && m->known_sha1_hex) {
++        for (size_t k = 0; k < m->num_known_sha1; ++k) {
++            if (m->known_sha1_hex[k] &&
++                (!m->rom_patch_source_sha1 || strcmp(m->known_sha1_hex[k], m->rom_patch_source_sha1) != 0) &&
++                strcmp(output_hex, m->known_sha1_hex[k]) == 0) {
++                patch_sha_ok = true;
++                break;
++            }
++        }
++    }
++    if (!patch_sha_ok) {
+         free(output);
+         safe_copy(m->rom_patch_status, sizeof(m->rom_patch_status),
+                   "This executable was built for a different patch release.");
 diff --git a/src/common/launcher_model.h b/src/common/launcher_model.h
 index 1e7fc30..04ce112 100644
 --- a/src/common/launcher_model.h
@@ -203,11 +225,24 @@ index 1e7fc30..04ce112 100644
  bool launcher_model_can_launch(const LauncherModel* m);
  // True when the mounted disc is OK for online (TOC/cue policy + content).
  // Non-disc games (verify.mode!=1) always return true when netplay is supported.
+diff --git a/src/consoles/gba/gba_profile.h b/src/consoles/gba/gba_profile.h
+index 3eff430..dfbe27b 100644
+--- a/src/consoles/gba/gba_profile.h
++++ b/src/consoles/gba/gba_profile.h
+@@ -80,6 +80,8 @@ static const SystemProfile kSystemProfileGba = {
+         kGbaPadButtons, LNG_GBA_PAD_BUTTON_COUNT,
+         "pad_gba.tga", NULL, NULL,     // handheld art; no analog/digital pair
+         /* max_players */ 1, /* has_pad_mode */ 0, /* link seats are netplay-only: create_max_slots */
++        /* binds_per_input */ 1, /* modes */ NULL, /* mode_count */ 0,
++        /* has_pad_binds */ 1,
+     },
+     // One battery save per cartridge: the runtime presents EEPROM/flash/SRAM
+     // uniformly as a single .sav next to the ROM (or game.toml [save].path).
 diff --git a/src/recomp_launcher.h b/src/recomp_launcher.h
-index 5ac76bd..5d74307 100644
+index d1021a7..3146df7 100644
 --- a/src/recomp_launcher.h
 +++ b/src/recomp_launcher.h
-@@ -2139,13 +2139,17 @@ typedef struct RecompLauncherCGameInfo {
+@@ -2145,13 +2145,17 @@ typedef struct RecompLauncherCGameInfo {
      int assist_fast_forward_max;
  
      /* Optional general ROM-patch surface. recomp-ui applies classic IPS,
