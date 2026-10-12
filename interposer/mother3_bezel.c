@@ -607,6 +607,60 @@ static void apply_preset(int preset) {
     log_hotkey(g_toast_msg);
 }
 
+static int get_pe_text_section(uint8_t* pBase, uint8_t** out_start, size_t* out_size) {
+    if (!pBase || pBase[0] != 'M' || pBase[1] != 'Z') return 0;
+    uint32_t lfanew = *(uint32_t*)(pBase + 0x3C);
+    if (lfanew == 0 || lfanew > 0x1000) return 0;
+    uint8_t* nt = pBase + lfanew;
+    if (nt[0] != 'P' || nt[1] != 'E' || nt[2] != 0 || nt[3] != 0) return 0;
+    uint16_t num_sec = *(uint16_t*)(nt + 6);
+    uint16_t opt_size = *(uint16_t*)(nt + 20);
+    uint8_t* sec = nt + 24 + opt_size;
+    for (uint16_t i = 0; i < num_sec; ++i, sec += 40) {
+        uint32_t chars = *(uint32_t*)(sec + 36);
+        if ((chars & 0x20000020u) != 0) { // IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE
+            uint32_t vsize = *(uint32_t*)(sec + 8);
+            uint32_t rva = *(uint32_t*)(sec + 12);
+            *out_start = pBase + rva;
+            *out_size = (size_t)vsize;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static uint8_t* find_pe_pattern(uint8_t* start, size_t size, const uint8_t* pat, const char* mask, size_t pat_len) {
+    if (!start || size < pat_len || pat_len == 0) return NULL;
+    size_t limit = size - pat_len;
+    uint8_t first = pat[0];
+    for (size_t i = 0; i <= limit; ++i) {
+        if (mask[0] == 'x' && start[i] != first) continue;
+        size_t j = 1;
+        for (; j < pat_len; ++j) {
+            if (mask[j] == 'x' && start[i + j] != pat[j]) break;
+        }
+        if (j == pat_len) return start + i;
+    }
+    return NULL;
+}
+
+static uint8_t* resolve_rva_or_pattern(uint8_t* pBase, size_t rva, const uint8_t* pat, const char* mask, size_t pat_len) {
+    uint8_t* text_start = NULL;
+    size_t text_size = 0;
+    if (get_pe_text_section(pBase, &text_start, &text_size)) {
+        uint8_t* cand = pBase + rva;
+        if (cand >= text_start && cand + pat_len <= text_start + text_size) {
+            size_t j = 0;
+            for (; j < pat_len; ++j) {
+                if (mask[j] == 'x' && cand[j] != pat[j]) break;
+            }
+            if (j == pat_len) return cand;
+        }
+        return find_pe_pattern(text_start, text_size, pat, mask, pat_len);
+    }
+    return pBase + rva;
+}
+
 static void install_launcher_hooks(uint8_t* pBase) {
     // 1. Unhide GAMEPAD BINDINGS table UI (NOP out je 0x3948744)
     uint8_t* pPadBindsJump = pBase + 0x394ab40;
@@ -630,9 +684,10 @@ static void install_launcher_hooks(uint8_t* pBase) {
         }
     }
 
-    // 3. Hook launcher_model_begin_capture_gamepad at 0x3a47f80
-    uint8_t* pPadCapTarget = pBase + 0x3a47f80;
-    if (pPadCapTarget[0] == 0xb8 && pPadCapTarget[1] == 0x0c) {
+    // 3. Hook launcher_model_begin_capture_gamepad (RVA 0x3a47f80 or pattern fallback)
+    static const uint8_t kPatPadCap[] = { 0xb8, 0x0c, 0x00, 0x00, 0x00 };
+    uint8_t* pPadCapTarget = resolve_rva_or_pattern(pBase, 0x3a47f80, kPatPadCap, "xxxxx", sizeof(kPatPadCap));
+    if (pPadCapTarget && pPadCapTarget[0] == 0xb8 && pPadCapTarget[1] == 0x0c) {
         DWORD oldProtect;
         if (VirtualProtect(pPadCapTarget, 15, PAGE_EXECUTE_READWRITE, &oldProtect)) {
             pPadCapTarget[0] = 0xFF;
@@ -648,9 +703,10 @@ static void install_launcher_hooks(uint8_t* pBase) {
         }
     }
 
-    // 4. Hook launcher_model_begin_capture at 0x3a48710
-    uint8_t* pKeyCapTarget = pBase + 0x3a48710;
-    if (pKeyCapTarget[0] == 0x48 && pKeyCapTarget[1] == 0x85 && pKeyCapTarget[2] == 0xc9 && pKeyCapTarget[3] == 0x74 && pKeyCapTarget[4] == 0x27) {
+    // 4. Hook launcher_model_begin_capture (RVA 0x3a48710 or pattern fallback)
+    static const uint8_t kPatKeyCap[] = { 0x48, 0x85, 0xc9, 0x74, 0x27 };
+    uint8_t* pKeyCapTarget = resolve_rva_or_pattern(pBase, 0x3a48710, kPatKeyCap, "xxxxx", sizeof(kPatKeyCap));
+    if (pKeyCapTarget && pKeyCapTarget[0] == 0x48 && pKeyCapTarget[1] == 0x85 && pKeyCapTarget[2] == 0xc9 && pKeyCapTarget[3] == 0x74 && pKeyCapTarget[4] == 0x27) {
         DWORD oldProtect;
         if (VirtualProtect(pKeyCapTarget, 14, PAGE_EXECUTE_READWRITE, &oldProtect)) {
             pKeyCapTarget[0] = 0xFF;
@@ -665,9 +721,10 @@ static void install_launcher_hooks(uint8_t* pBase) {
         }
     }
 
-    // 5. Hook launcher_model_frame at 0x3a48b00 with trampoline
-    uint8_t* pFrameTarget = pBase + 0x3a48b00;
-    if (pFrameTarget[0] == 0x53 && pFrameTarget[1] == 0x48 && pFrameTarget[2] == 0x83 && pFrameTarget[3] == 0xec && pFrameTarget[4] == 0x60) {
+    // 5. Hook launcher_model_frame (RVA 0x3a48b00 or pattern fallback) with trampoline
+    static const uint8_t kPatFrame[] = { 0x53, 0x48, 0x83, 0xec, 0x60 };
+    uint8_t* pFrameTarget = resolve_rva_or_pattern(pBase, 0x3a48b00, kPatFrame, "xxxxx", sizeof(kPatFrame));
+    if (pFrameTarget && pFrameTarget[0] == 0x53 && pFrameTarget[1] == 0x48 && pFrameTarget[2] == 0x83 && pFrameTarget[3] == 0xec && pFrameTarget[4] == 0x60) {
         memcpy(g_tramp_frame_buf, pFrameTarget, 15);
         g_tramp_frame_buf[15] = 0xFF;
         g_tramp_frame_buf[16] = 0x25;
@@ -1187,7 +1244,12 @@ __declspec(dllexport) int SDL_DYNAPI_entry(uint32_t apiver, void *table, uint32_
     HMODULE hHost = GetModuleHandleA(NULL);
     if (!hHost) return -1;
     
-    pfn_dynapi_entry real_entry = (pfn_dynapi_entry)((uintptr_t)hHost + 0x3ad8b10);
+    pfn_dynapi_entry real_entry = (pfn_dynapi_entry)(uintptr_t)GetProcAddress(hHost, "SDL_DYNAPI_entry");
+    if (!real_entry) {
+        static const uint8_t kPatDynApi[] = { 0x83, 0xf9, 0x01 };
+        uint8_t* pDyn = resolve_rva_or_pattern((uint8_t*)hHost, 0x3ad8b10, kPatDynApi, "xxx", sizeof(kPatDynApi));
+        real_entry = (pfn_dynapi_entry)(uintptr_t)(pDyn ? pDyn : ((uint8_t*)hHost + 0x3ad8b10));
+    }
     int res = real_entry(apiver, table, tablesize);
     if (res < 0) return res;
     

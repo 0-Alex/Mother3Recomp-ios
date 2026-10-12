@@ -1,5 +1,5 @@
 # MOTHER 3 (Japan, A3UJ) with the MOTHER 3 Fan Translation v1.3 (English).
-# The generated corpus targets the patched English image only.
+# Supports both the standard English v1.3 image and the High-Quality Sound Mixing Mod.
 
 [game]
 name = "MOTHER 3"
@@ -20,6 +20,13 @@ codegen_shards = 64
 [identity]
 sha1 = "306fb8874533b0fd0796208faa8bed2db4ae77fb"
 md5 = "78852690de6ef51af56883c3823ea0e1"
+
+[recompiler]
+entry_point = "0x08000000"
+seeds = "symbols/imported_symbols.tsv"
+boundaries = "symbols/function_boundaries.tsv"
+out_dir = "generated"
+strict = true
 
 [bios]
 path = "gbarecomp/bios/gba_bios.bin"
@@ -52,6 +59,11 @@ widescreen = false
 [audio]
 shadow = false
 
+[[data_range]]
+start = 0x08000004
+end = 0x080000C0
+note = "cartridge header (Nintendo logo, title, game code, checksums)"
+
 # Startup copies the crt0 IRQ implementation from ROM into IWRAM.
 # Verified byte-for-byte against live IWRAM (mGBA reference, attract + naming).
 [[code_copy]]
@@ -66,14 +78,29 @@ addr = 0x03002EF0
 mode = "arm"
 name = "irq_handler_iwram_entry"
 
+[[extra_func]]
+addr = 0x03003004
+mode = "arm"
+name = "irq_handler_iwram_sub"
+note = "secondary ARM entry inside crt0 IRQ handler block"
+
 # Sound driver hot path copied with CpuSet(0x0808ED81 -> 0x03000000, 0x100 words)
 # by the routine at 0x0808F9A2.
+# Note: When the High-Quality Sound Mixing Mod (SHA-1 4ffe71ce...) is active,
+# 0x03000000 holds the 16-bit mixing workbuffer (hq_buffer) and the self-modifying
+# m4a_hq_mixer lives at 0x03001C00..0x0300247C; src/main.cpp intercepts and executes
+# m4a_hq_mixer natively in C++ while guarding 0x03000000 against stale AOT entry.
 [[code_copy]]
 runtime_start = 0x03000000
 source_start = 0x0808ED80
 size = 0x00000400
 name = "sound_driver_iwram"
 note = "CpuSet 32-bit x 0x100 from literal pool at 0x0808F9F0"
+
+[[extra_func]]
+addr = 0x03000000
+mode = "thumb"
+name = "sound_driver_iwram_entry"
 
 # Sprite priority sort copied by 0x08050D64 (memcpy 0x100 bytes).
 [[code_copy]]
@@ -109,6 +136,12 @@ addr = 0x080912D8
 mode = "thumb"
 name = "flash_compare_template"
 note = "0x30-byte verify loop; copied to IWRAM stack (seen at 0x03006C88)"
+
+[[extra_func]]
+addr = 0x0809184C
+mode = "thumb"
+name = "flash_verify_erased_template"
+note = "0x24-byte 0xFF sector erase-verify loop; copied to IWRAM stack by 0x08091728"
 
 # Field-engine routine copied by the code at 0x08032F7C (0x100 bytes, Thumb).
 [[code_copy]]

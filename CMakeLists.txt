@@ -36,8 +36,13 @@ set(GAME_RECOMPILED_SOURCES ${GAME_GENERATED_SOURCES})
 list(FILTER GAME_RECOMPILED_SOURCES INCLUDE REGEX
     "/recompiled_[0-9]+\\.cpp$")
 if(GAME_RECOMPILED_SOURCES)
-    set_source_files_properties(${GAME_RECOMPILED_SOURCES} PROPERTIES
-        COMPILE_OPTIONS "-O1;-g0")
+    if(MSVC)
+        set_source_files_properties(${GAME_RECOMPILED_SOURCES} PROPERTIES
+            COMPILE_OPTIONS "/O1;/EHs-c-;/GR-")
+    else()
+        set_source_files_properties(${GAME_RECOMPILED_SOURCES} PROPERTIES
+            COMPILE_OPTIONS "-O1;-g0;-fno-exceptions;-fno-rtti;-fno-strict-aliasing;-fno-math-errno")
+    endif()
 endif()
 
 target_include_directories(Mother3Recomp PRIVATE
