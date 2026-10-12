@@ -1,0 +1,74 @@
+name: Native Linux Build
+
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build Native Linux x86_64
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout Mother3Recomp
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential libsdl2-dev libpng-dev
+
+      - name: Setup Dependencies and Engine Patches
+        run: |
+          chmod +x tools/setup_deps.sh tools/build_linux.sh tools/run_mother3.sh
+          ./tools/setup_deps.sh
+
+      - name: Build Native Mother3Recomp (ELF x86_64)
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target Mother3Recomp -j$(nproc)
+          strip build/Mother3Recomp
+
+      - name: Verify Native Binary
+        run: |
+          file build/Mother3Recomp
+          ldd build/Mother3Recomp
+
+      - name: Package Native Linux Bundle
+        run: |
+          mkdir -p stage_linux/Mother3Recomp-Linux
+          cp build/Mother3Recomp stage_linux/Mother3Recomp-Linux/
+          chmod +x stage_linux/Mother3Recomp-Linux/Mother3Recomp
+          cp tools/run_mother3.sh stage_linux/Mother3Recomp-Linux/
+          chmod +x stage_linux/Mother3Recomp-Linux/run_mother3.sh
+          cp -r assets stage_linux/Mother3Recomp-Linux/
+          cp -r config stage_linux/Mother3Recomp-Linux/
+          cp -r mods stage_linux/Mother3Recomp-Linux/
+          cp game.toml stage_linux/Mother3Recomp-Linux/
+          cp README.md stage_linux/Mother3Recomp-Linux/
+          cp CREDITS.md stage_linux/Mother3Recomp-Linux/
+          cp LICENSE stage_linux/Mother3Recomp-Linux/LICENSE.txt
+          mkdir -p stage_linux/Mother3Recomp-Linux/roms
+          mkdir -p stage_linux/Mother3Recomp-Linux/saves
+          mkdir -p stage_linux/Mother3Recomp-Linux/bios
+          cd stage_linux
+          tar -czvf ../Mother3Recomp-linux-x86_64.tar.gz Mother3Recomp-Linux
+
+      - name: Upload Linux Release Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mother3Recomp-linux-x86_64
+          path: Mother3Recomp-linux-x86_64.tar.gz
+
+      - name: Attach to Release (if tagged release)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Mother3Recomp-linux-x86_64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

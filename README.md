@@ -75,25 +75,40 @@ To play, you must provide your own legitimate dumps of:
    - *(Optional)* If using a clean Japanese ROM, tick **ROM patch** and select `mother3.ups`.
 4. Configure display and controller settings if desired, then click **Play**.
 
-### Linux & Steam Deck
+### Linux (x86_64) & Steam Deck (Native)
 
-#### Method 1: Instant Play via Steam / Proton (Recommended)
-The fastest and most reliable way to play on **Steam Deck (SteamOS)** or **Linux desktop** with zero compilation required:
-1. Download the Windows release archive [`Mother3Recomp-v1.0.3-windows-x64.zip`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.3) and extract it anywhere (e.g. `~/Games/Mother3Recomp/`).
-2. Open **Steam** $\rightarrow$ click **Add a Game** (bottom left) $\rightarrow$ **Add a Non-Steam Game...** $\rightarrow$ browse to `Mother3Recomp.exe`.
-3. Right-click **Mother3Recomp** in your Steam library $\rightarrow$ select **Properties...** $\rightarrow$ **Compatibility** tab $\rightarrow$ check **Force the use of a specific Steam Play compatibility tool** $\rightarrow$ choose **Proton Experimental** or **Proton 9.0+**.
-4. Launch the game! Steam Deck handheld controls, 16:9 decorative bezel, in-game remapping, and audio mixing all work natively out of the box.
+Mother 3 Recomp runs as a **100% native Linux application** (native x86_64 ELF binary with native SDL2, OpenGL/Vulkan, and ALSA/PulseAudio/PipeWire audio).
 
-#### Method 2: Native Linux Build (from Source)
-If you prefer compiling a native Linux ELF binary:
-1. Install build prerequisites: `cmake`, `ninja-build`, `libsdl2-dev` (or `SDL2-devel`), and GCC 12+ / Clang 15+.
-2. Download and extract the source archive, then run:
+1. **Native Release Archive**:
+   Download [`Mother3Recomp-v1.0.3-linux-x86_64.tar.gz`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.3) and extract it:
    ```bash
-   chmod +x tools/build_linux.sh tools/run_mother3.sh
-   ./tools/run_mother3.sh
+   tar -xzf Mother3Recomp-v1.0.3-linux-x86_64.tar.gz
+   cd Mother3Recomp-Linux
    ```
-   *Note: `build_linux.sh` automatically checks out the pinned `gbarecomp` and `recomp-ui` commits, applies the translation/UPS patches, and builds the native executable.*
-3. Place `gba_bios.bin` in `bios/` and your ROM in `roms/`. Both the English translation (`306fb887...`), HQ Sound Mixing Mod (`4ffe71ce...`), and Japanese ROM (`4f0f493e...` + `mother3.ups`) are natively recognized.
+2. Place `gba_bios.bin` in `bios/` and your ROM in `roms/`.
+   - **English Fan Translation v1.3**: SHA-1 `306fb8874533b0fd0796208faa8bed2db4ae77fb` (recognized natively)
+   - **High-Quality 16-Bit Audio Mod**: SHA-1 `4ffe71ce5c5e1e8d9be5fbd09968b60787169b21` (recognized natively)
+   - **Clean Japanese ROM**: SHA-1 `4f0f493e12c2a8c61b2d809af03f7abf87a85776` (enable **ROM patch** with `mother3.ups`)
+3. Launch natively:
+   ```bash
+   chmod +x Mother3Recomp run_mother3.sh
+   ./run_mother3.sh
+   ```
+4. **Steam Deck (Game Mode)**:
+   Add `run_mother3.sh` (or `Mother3Recomp`) as a **Non-Steam Game** in desktop Steam. In Steam Deck Game Mode, launch directly without any Proton compatibility layer needed—it executes as a native Linux process with full gamepad controls, 16:9 widescreen, and custom bezel.
+
+#### Building Natively from Source (Linux / SteamOS)
+To compile directly on Linux:
+```bash
+# 1. Install dependencies (Ubuntu/Debian/SteamOS developer mode)
+sudo apt-get install -y cmake ninja-build build-essential libsdl2-dev libpng-dev
+
+# 2. Build and launch
+chmod +x tools/setup_deps.sh tools/build_linux.sh tools/run_mother3.sh
+./tools/build_linux.sh
+./tools/run_mother3.sh
+```
+The build script automatically checks out the pinned `gbarecomp` and `recomp-ui` commits, applies the translation, UPS, and HQ audio patches, and compiles `Mother3Recomp`.
 
 ### Android
 1. Download [`Mother3Recomp-v1.0.2-android-arm64.apk`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.2) and install it on your device.

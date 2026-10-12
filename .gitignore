@@ -17,6 +17,9 @@ saves/
 # Build directories & cache
 build/
 build-win/
+gbarecomp/
+recomp-ui/
+generated/
 recomp_cache/
 release-stage/
 *.zip
