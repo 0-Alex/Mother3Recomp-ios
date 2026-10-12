@@ -76,18 +76,24 @@ To play, you must provide your own legitimate dumps of:
 4. Configure display and controller settings if desired, then click **Play**.
 
 ### Linux & Steam Deck
-1. Download [`Mother3Recomp-v1.0.2-linux-x86_64.tar.gz`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.2) and extract it:
+
+#### Method 1: Instant Play via Steam / Proton (Recommended)
+The fastest and most reliable way to play on **Steam Deck (SteamOS)** or **Linux desktop** with zero compilation required:
+1. Download the Windows release archive [`Mother3Recomp-v1.0.3-windows-x64.zip`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.3) and extract it anywhere (e.g. `~/Games/Mother3Recomp/`).
+2. Open **Steam** $\rightarrow$ click **Add a Game** (bottom left) $\rightarrow$ **Add a Non-Steam Game...** $\rightarrow$ browse to `Mother3Recomp.exe`.
+3. Right-click **Mother3Recomp** in your Steam library $\rightarrow$ select **Properties...** $\rightarrow$ **Compatibility** tab $\rightarrow$ check **Force the use of a specific Steam Play compatibility tool** $\rightarrow$ choose **Proton Experimental** or **Proton 9.0+**.
+4. Launch the game! Steam Deck handheld controls, 16:9 decorative bezel, in-game remapping, and audio mixing all work natively out of the box.
+
+#### Method 2: Native Linux Build (from Source)
+If you prefer compiling a native Linux ELF binary:
+1. Install build prerequisites: `cmake`, `ninja-build`, `libsdl2-dev` (or `SDL2-devel`), and GCC 12+ / Clang 15+.
+2. Download and extract the source archive, then run:
    ```bash
-   tar -xzf Mother3Recomp-v1.0.2-linux-x86_64.tar.gz
-   cd Mother3Recomp-Linux
+   chmod +x tools/build_linux.sh tools/run_mother3.sh
+   ./tools/run_mother3.sh
    ```
-2. Place `gba_bios.bin` in `bios/` and your ROM in `roms/`.
-3. Make the launcher executable and run:
-   ```bash
-   chmod +x run_mother3.sh build_linux.sh
-   ./run_mother3.sh
-   ```
-4. *Steam Deck*: Add `run_mother3.sh` as a Non-Steam Game in Steam for full Game Mode handheld play!
+   *Note: `build_linux.sh` automatically checks out the pinned `gbarecomp` and `recomp-ui` commits, applies the translation/UPS patches, and builds the native executable.*
+3. Place `gba_bios.bin` in `bios/` and your ROM in `roms/`. Both the English translation (`306fb887...`), HQ Sound Mixing Mod (`4ffe71ce...`), and Japanese ROM (`4f0f493e...` + `mother3.ups`) are natively recognized.
 
 ### Android
 1. Download [`Mother3Recomp-v1.0.2-android-arm64.apk`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.2) and install it on your device.
