@@ -2,9 +2,11 @@ Mother 3 Recomp (English) - Multi-Platform v1.0.3
 =================================================
 
 What's New in v1.0.3:
-- Interactive In-Launcher Gamepad Remapping:
-    * Map Xbox, PlayStation, Switch, and PC controllers directly inside
-      Settings -> Controls with real-time detection and analog trigger support!
+- Controller Remapping & In-Game Layout Switcher:
+    * Cycle controller layouts mid-game via F9, Xbox Guide, or Back+Start with
+      a crisp on-screen notification toast.
+    * Switch layouts instantly or configure custom binds with "Remap Controller.bat".
+    * (Note: Launcher Settings -> Controls is reserved for keyboard bindings by upstream recomp-ui).
 - Native 16-Bit High-Quality Audio Engine:
     * Direct native recognition for the High-Quality Sound Mixing Mod ROM.
     * Replaced self-modifying RAM mixer with native C++ HLE 16-bit mixing pipeline,
@@ -13,9 +15,6 @@ What's New in v1.0.3:
     * Fixed ROM verification errors on Linux by bundling recompiled sources and
       applying translation/UPS patches during the native build.
     * Added Mother3Recomp.desktop launcher for 1-click launch on SteamOS Desktop.
-- In-Game Preset Switcher & HUD Toast:
-    * Cycle controller layouts mid-game via F9, Xbox Guide, or Back+Start with
-      a crisp on-screen notification toast.
 
 1. Quick Start (Windows):
    - Run "Play Mother 3.cmd" or "Mother3Recomp.exe".

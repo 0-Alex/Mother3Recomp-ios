@@ -1,6 +1,6 @@
 # MOTHER 3 Native Port (Recompilation) v1.0.3
 
-A native multi-platform port of **MOTHER 3** featuring the official **MOTHER 3 Fan Translation v1.3 (English)** with native support for the **High-Quality 16-Bit Sound Mixing Mod**, clean fullscreen mode, interactive in-launcher gamepad remapping, and dedicated packages for **Windows**, **Linux**, and **Android**.
+A native multi-platform port of **MOTHER 3** featuring the official **MOTHER 3 Fan Translation v1.3 (English)** with native support for the **High-Quality 16-Bit Sound Mixing Mod**, clean fullscreen mode, in-game controller layout switching, and dedicated packages for **Windows**, **Linux**, and **Android**.
 
 Unlike conventional emulation, this project statically recompiles the original Game Boy Advance ARM/Thumb machine code into native C++ instructions. The resulting binary executes natively on modern hardware with ultra-low latency, full analog movement, optional decorative bezel framing, integer scaling, and instant save state controls.
 
@@ -25,17 +25,16 @@ Unlike conventional emulation, this project statically recompiles the original G
 
 ## 1. What's New in v1.0.3
 
-* **Interactive In-Launcher Gamepad Remapping**:
-  - Remap Xbox, PlayStation, Switch, and PC controllers directly inside the launcher GUI under **Settings $\rightarrow$ Controls**!
-  - Real-time button capture with analog trigger (LT/RT) detection and seamless persistence to `keybinds.ini`.
+* **Controller Remapping & In-Game Layout Switcher**:
+  - Cycle mid-game between 4 controller layouts (**Xbox Standard**, **Nintendo Switch**, **Trigger Dash**, **Classic 1:1**) via **F9**, **Xbox Guide**, or **Back + Start** with an on-screen notification banner.
+  - One-click configuration via **`Remap Controller.bat`** with dynamic live hot-reloading (persisted to `keybinds.ini`).
+  - *(Note: Upstream `recomp-ui` only supports keyboard mapping inside the launcher GUI for GBA targets; gamepad layouts are managed via the in-game switcher and `keybinds.ini`).*
 * **Native 16-Bit High-Quality Audio Engine (`run_hq_mixer_native`)**:
   - Replaced GBA self-modifying IWRAM assembly (`0x03001C00`) with a native C++ HLE 16-bit mixing pipeline, eliminating frame drops and audio crackling on hot audio routines.
   - Native recognition for the High-Quality Sound Mixing Mod ROM SHA-1 (`4ffe71ce...`) directly in the launcher and runtime without patch steps or bypasses.
 * **100% Native Linux & Steam Deck Build Overhaul**:
   - Resolved ROM verification errors on Linux by bundling recompiled sources and applying translation/UPS patches during the native build.
   - Added `Mother3Recomp.desktop` launcher for 1-click launch on SteamOS Desktop.
-* **In-Game Preset Switcher with On-Screen HUD**:
-  - Cycle mid-game between 4 controller layouts (**Xbox Standard**, **Nintendo Switch**, **Trigger Dash**, **Classic 1:1**) via **F9**, **Xbox Guide**, or **Back + Start** with an on-screen notification banner.
 * **64-Bit Interposer Stability**:
   - Fixed pattern scanner prologue in `mother3_bezel.dll` for `SDL_DYNAPI_entry`, ensuring crash-free hook attachment across modern 64-bit systems.
 * **Clean Fullscreen / No Borders Mode (F10 Toggle)**:
