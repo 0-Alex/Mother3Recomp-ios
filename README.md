@@ -41,11 +41,11 @@ Unlike conventional emulation, this project statically recompiles the original G
   - Toggle between the **1080p Sunset & Party Bezel** and **Clean Fullscreen Mode (No Borders)** at any time during gameplay with **`F10`**!
 * **Separate Multi-Platform Packages & Forks**:
   - Dedicated releases are now downloadable individually:
-    | Platform | Package Archive | SHA-1 Checksum |
+    | Platform | Package Archive | Release Asset |
     | :--- | :--- | :--- |
-    | **Windows (x64)** | [`Mother3Recomp-v1.0.3-windows-x64.zip`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.3) | `93e34553a275a031f20acfa7d4a3855ce58f27e7` |
-    | **Linux (x86_64 / Steam Deck)** | [`Mother3Recomp-v1.0.3-linux-x86_64.tar.gz`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.3) | `48b0b4819f7d90ff1bb8b7b2bac15c2720f290c6` |
-    | **Android (ARM64)** | [`Mother3Recomp-v1.0.2-android-arm64.apk`](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.2) | `3032f318e31021fd9c6177c215ed6851fa8b9c1f` |
+    | **Windows (x64)** | `Mother3Recomp-v1.0.3-windows-x64.zip` | [Download v1.0.3](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.3) |
+    | **Linux (x86_64 / Steam Deck)** | `Mother3Recomp-v1.0.3-linux-x86_64.tar.gz` | [Download v1.0.3](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.3) |
+    | **Android (ARM64)** | `Mother3Recomp-v1.0.3-android-arm64.apk` | [Download v1.0.3](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.3) |
   - Dedicated repository forks:
     - Android Port Repository: [josiahg2502-glitch/Mother3Recomp-Android](https://github.com/josiahg2502-glitch/Mother3Recomp-Android)
     - Linux Port Repository: [josiahg2502-glitch/Mother3Recomp-Linux](https://github.com/josiahg2502-glitch/Mother3Recomp-Linux)
