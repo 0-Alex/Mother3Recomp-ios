@@ -18,10 +18,5 @@
     "region": "Japan",
     "sha1": "4f0f493e12c2a8c61b2d809af03f7abf87a85776"
   },
-  "notes": "Windows and Linux public builds: v1.0.4. Android public build: v1.0.5. Fan patches use the compatibility interpreter; known English v1.3 and HQ Audio builds can use native code. Provide your own ROM and BIOS. Adaptive scenery expansion in v1.0.5 has reported artifacts and is being corrected.",
-  "x-platform-releases": {
-    "Windows": "v1.0.4",
-    "Linux": "v1.0.4",
-    "Android": "v1.0.5"
-  }
+  "notes": "Windows and Linux: v1.0.4. Android: v1.0.5 (Android-only update). Fan language patches are supported; compatibility and performance vary. Supply your own ROM; BIOS is optional on Android. Android startup/display issues are under investigation."
 }
