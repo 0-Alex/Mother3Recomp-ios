@@ -23,6 +23,8 @@ Bring your own ROM and game files.
 
 ## Project status
 
+Released and actively maintained. Project metadata follows the [recomp.board outline](https://recomp.fyi/spec) in [`.recomp.json`](.recomp.json).
+
 Language patches include Spanish; compatibility and speed vary by patch.
 Android has separate controls for system bars, display fill and on-screen buttons. Device-specific performance reports remain under investigation.
 
