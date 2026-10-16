@@ -4,6 +4,7 @@
   "wikidata": "Q2383167",
   "system": "GBA",
   "type": "recomp",
+  "project": "MOTHER 3 Recomp",
   "status": "released",
   "targets": [
     "Windows",
@@ -18,5 +19,5 @@
     "region": "Japan",
     "sha1": "4f0f493e12c2a8c61b2d809af03f7abf87a85776"
   },
-  "notes": "v1.0.6 for Windows, Linux and Android. Fan language patches are supported; compatibility and performance vary. Supply your own ROM; BIOS is optional on Android. Android offers separate system-bar, display-fill and on-screen-button controls; device-specific performance reports remain under investigation."
+  "notes": "Fan language patches, including Spanish, are supported; compatibility and performance vary. Supply your own ROM; BIOS is optional on Android. Android has separate controls for system bars, display fill and on-screen buttons. Device-specific Android performance remains under investigation."
 }
