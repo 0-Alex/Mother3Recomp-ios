@@ -103,6 +103,10 @@ elseif(MINGW OR WIN32)
 endif()
 
 if(WIN32)
+    enable_language(RC)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/mother3_icon.rc"
+        "1 ICON \"${CMAKE_CURRENT_SOURCE_DIR}/Mother 3.ico\"\n")
+    target_sources(Mother3Recomp PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/mother3_icon.rc")
     add_library(mother3_bezel SHARED interposer/mother3_bezel.c)
     set_target_properties(mother3_bezel PROPERTIES PREFIX "")
     target_include_directories(mother3_bezel PRIVATE

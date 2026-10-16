@@ -14,6 +14,8 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#elif defined(__linux__)
+#include <sys/resource.h>
 #endif
 
 #if defined(GBAGAME_RECOMP_UI)
@@ -30,6 +32,18 @@ constexpr const char* kJapanSha1   = "4f0f493e12c2a8c61b2d809af03f7abf87a85776";
 }
 
 int main(int argc, char** argv) {
+#if defined(__linux__)
+    // Generated guest calls require the same stack budget as the Windows build.
+    struct rlimit stack;
+    constexpr rlim_t required_stack = 256u * 1024u * 1024u;
+    if (getrlimit(RLIMIT_STACK, &stack) == 0 && stack.rlim_cur < required_stack) {
+        stack.rlim_cur = required_stack;
+        if (setrlimit(RLIMIT_STACK, &stack) != 0) {
+            std::fprintf(stderr, "Could not reserve the game stack; raise the process stack limit.\n");
+            return 1;
+        }
+    }
+#endif
 #if defined(_WIN32)
     char hook_path[MAX_PATH];
     if (GetModuleFileNameA(nullptr, hook_path, MAX_PATH)) {
