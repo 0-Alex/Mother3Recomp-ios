@@ -5,11 +5,18 @@
   "system": "GBA",
   "type": "recomp",
   "status": "released",
-  "targets": ["Windows", "Linux", "Android"],
-  "toolchain": ["gbarecomp", "recomp-ui"],
+  "targets": [
+    "Windows",
+    "Linux",
+    "Android"
+  ],
+  "toolchain": [
+    "gbarecomp",
+    "recomp-ui"
+  ],
   "original": {
     "region": "Japan",
     "sha1": "4f0f493e12c2a8c61b2d809af03f7abf87a85776"
   },
-  "notes": "Windows: v1.0.4. Linux: v1.0.4. Android: v1.0.5 (Android-only update). Requires the English fan translation v1.3; the launcher also accepts a clean Japanese ROM with the translation UPS patch. A user-supplied GBA BIOS is required."
+  "notes": "Windows and Linux: v1.0.4. Android: v1.0.5 (Android-only update). Fan language patches are supported; compatibility and performance vary. Supply your own ROM; BIOS is optional on Android. Android startup/display issues are under investigation."
 }
