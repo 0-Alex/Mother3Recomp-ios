@@ -46,7 +46,7 @@ Controllers support the D-pad and left stick. Button layouts and extra hotkeys c
 
 ## Known issues
 
-- [Android startup loops, slow scenes and repeated side scenery (v1.0.5)](https://github.com/josiahg2502-glitch/Mother3Recomp/issues/9).
+- [Android device-specific performance reports](https://github.com/josiahg2502-glitch/Mother3Recomp/issues/9).
 - [Desktop F11 crash reports](https://github.com/josiahg2502-glitch/Mother3Recomp/issues/8).
 
 When reporting a problem, include the app version, device/OS, patch version, steps and any error text. Candidate fixes are under review; device performance still needs confirmation.
