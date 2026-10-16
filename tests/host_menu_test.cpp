@@ -21,17 +21,7 @@ int main() {
     SDL_SetHint("SDL_JOYSTICK_WGI", "0");
     SDL_SetHint("SDL_JOYSTICK_DIRECTINPUT", "0");
     assert(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) == 0);
-    SDL_VirtualJoystickDesc desc{};
-    desc.version = SDL_VIRTUAL_JOYSTICK_DESC_VERSION;
-    desc.type = SDL_JOYSTICK_TYPE_GAMECONTROLLER;
-    desc.naxes = 6;
-    desc.nbuttons = 16;
-    desc.vendor_id = 0xfeed;
-    desc.product_id = 0x1234;
-    desc.axis_mask = (1 << 6) - 1;
-    desc.button_mask = (1 << 16) - 1;
-    desc.name = "MOTHER 3 input regression";
-    int device = SDL_JoystickAttachVirtualEx(&desc);
+    int device = SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER, 6, 16, 0);
     assert(device >= 0);
     auto* joystick = SDL_JoystickOpen(device);
     assert(joystick);
