@@ -18,5 +18,5 @@
     "region": "Japan",
     "sha1": "4f0f493e12c2a8c61b2d809af03f7abf87a85776"
   },
-  "notes": "Windows and Linux: v1.0.4. Android: v1.0.5 (Android-only update). Fan language patches are supported; compatibility and performance vary. Supply your own ROM; BIOS is optional on Android. Android startup/display issues are under investigation."
+  "notes": "v1.0.6 for Windows, Linux and Android. Fan language patches are supported; compatibility and performance vary. Supply your own ROM; BIOS is optional on Android. Android offers separate system-bar, display-fill and on-screen-button controls; device-specific performance reports remain under investigation."
 }
