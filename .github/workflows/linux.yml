@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y ninja-build libsdl2-dev libgl1-mesa-dev python3
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libsdl2-dev libgl1-mesa-dev python3 xvfb
       - name: Prepare pinned source
         run: python3 tools/setup_deps.py
       - name: Load private native corpus
@@ -42,6 +42,14 @@ jobs:
           cmake --build build --target Mother3Recomp host_menu_test presentation_layout_tests touch_input_tests -j2
       - name: Test runtime menu, input, layout and touch
         run: ctest --test-dir build -R 'host_menu_test|presentation_layout_tests|touch_input_tests' --output-on-failure
+      - name: Check native gameplay with private game files
+        if: inputs.native_asset_id != ''
+        env:
+          SDL_RENDER_DRIVER: software
+          SDL_AUDIODRIVER: dummy
+        run: |
+          xvfb-run -a ./build/Mother3Recomp --no-launcher --window --uncapped --rom "$PWD/private-qa/rom.gba" --bios "$PWD/private-qa/bios.bin" --save-path "$PWD/private-qa/check.sav" --state-dir "$PWD/private-qa" --frames 1200
+          python3 tools/check_rom_gate.py build/Mother3Recomp private-qa/rom.gba private-qa/bios.bin
       - name: Package native Linux build
         if: inputs.native_asset_id != ''
         run: python3 tools/package_release.py 1.0.6 linux-x86_64 build/Mother3Recomp release-stage
