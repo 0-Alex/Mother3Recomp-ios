@@ -5,11 +5,23 @@
   "system": "GBA",
   "type": "recomp",
   "status": "released",
-  "targets": ["Windows", "Linux", "Android"],
-  "toolchain": ["gbarecomp", "recomp-ui"],
+  "targets": [
+    "Windows",
+    "Linux",
+    "Android"
+  ],
+  "toolchain": [
+    "gbarecomp",
+    "recomp-ui"
+  ],
   "original": {
     "region": "Japan",
     "sha1": "4f0f493e12c2a8c61b2d809af03f7abf87a85776"
   },
-  "notes": "Windows: v1.0.4. Linux: v1.0.4. Android: v1.0.5 (Android-only update). Requires the English fan translation v1.3; the launcher also accepts a clean Japanese ROM with the translation UPS patch. A user-supplied GBA BIOS is required."
+  "notes": "Windows and Linux public builds: v1.0.4. Android public build: v1.0.5. Fan patches use the compatibility interpreter; known English v1.3 and HQ Audio builds can use native code. Provide your own ROM and BIOS. Adaptive scenery expansion in v1.0.5 has reported artifacts and is being corrected.",
+  "x-platform-releases": {
+    "Windows": "v1.0.4",
+    "Linux": "v1.0.4",
+    "Android": "v1.0.5"
+  }
 }

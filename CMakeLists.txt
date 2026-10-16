@@ -18,18 +18,28 @@ if(NOT EXISTS "${GBARECOMP_ROOT}/CMakeLists.txt")
         "Configure with -DGBARECOMP_ROOT=<path> if the local worktree link is absent.")
 endif()
 
+if(WIN32)
+    # Launcher, runtime UI and bezel must share one SDL instance.
+    set(GBARECOMP_STATIC_RELEASE OFF CACHE BOOL "Use the bundled shared SDL2 backend" FORCE)
+endif()
 add_subdirectory("${GBARECOMP_ROOT}" gbarecomp_build EXCLUDE_FROM_ALL)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/generated/recompiled.cpp")
     message(FATAL_ERROR
         "Stale monolithic generated/recompiled.cpp found. "
         "Run tools/regen.ps1 with the current gbarecomp worktree.")
 endif()
+set(MOTHER3_GENERATED_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/generated" CACHE PATH "Private regenerated cart sources")
 file(GLOB GAME_GENERATED_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/generated/*.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/generated/*.cpp")
+    "${MOTHER3_GENERATED_ROOT}/*.c"
+    "${MOTHER3_GENERATED_ROOT}/*.cpp")
+
+if(NOT EXISTS "${MOTHER3_GENERATED_ROOT}/dispatch_table.cpp")
+    list(APPEND GAME_GENERATED_SOURCES src/empty_dispatch_table.cpp)
+endif()
 
 add_executable(Mother3Recomp
     src/main.cpp
+    src/mother3_runtime_hooks.cpp
     ${GAME_GENERATED_SOURCES})
 
 set(GAME_RECOMPILED_SOURCES ${GAME_GENERATED_SOURCES})
@@ -87,7 +97,37 @@ if(GBAGAME_RECOMP_UI)
 endif()
 
 if(MSVC)
-    target_link_options(Mother3Recomp PRIVATE /STACK:16777216)
+    target_link_options(Mother3Recomp PRIVATE /STACK:268435456)
 elseif(MINGW OR WIN32)
-    target_link_options(Mother3Recomp PRIVATE -Wl,--stack,16777216)
+    target_link_options(Mother3Recomp PRIVATE -Wl,--stack,268435456)
+endif()
+
+if(WIN32)
+    add_library(mother3_bezel SHARED interposer/mother3_bezel.c)
+    set_target_properties(mother3_bezel PROPERTIES PREFIX "")
+    target_include_directories(mother3_bezel PRIVATE
+        "${GBARECOMP_ROOT}/platform/android/third_party/SDL/include"
+        "${GBARECOMP_ROOT}/platform/android/third_party/SDL/src/dynapi")
+    add_dependencies(Mother3Recomp mother3_bezel)
+endif()
+
+include(CTest)
+if(BUILD_TESTING AND GBAGAME_RECOMP_UI)
+    add_executable(host_menu_test tests/host_menu_test.cpp
+        "${GBARECOMP_ROOT}/tools/bios_smoke/dispatch_stub.cpp")
+    target_link_gbarecomp_runtime_stack(host_menu_test)
+    target_link_libraries(host_menu_test PRIVATE game_launcher_ui)
+    target_compile_options(host_menu_test PRIVATE -UNDEBUG)
+    add_test(NAME host_menu_test COMMAND host_menu_test)
+    set_tests_properties(host_menu_test PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+endif()
+
+if(WIN32 AND BUILD_TESTING)
+    add_executable(sdl_hook_test tests/sdl_hook_test.c)
+    target_link_libraries(sdl_hook_test PRIVATE SDL2::SDL2)
+    target_compile_options(sdl_hook_test PRIVATE -UNDEBUG)
+    add_dependencies(sdl_hook_test mother3_bezel)
+    add_test(NAME sdl_hook_test COMMAND sdl_hook_test)
+    set_tests_properties(sdl_hook_test PROPERTIES ENVIRONMENT
+        "SDL_DYNAMIC_API=$<TARGET_FILE:mother3_bezel>;SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 endif()

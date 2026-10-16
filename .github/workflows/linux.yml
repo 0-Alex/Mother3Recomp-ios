@@ -1,0 +1,19 @@
+name: Linux source build
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libsdl2-dev libgl1-mesa-dev python3
+      - name: Prepare pinned source
+        run: python3 tools/setup_deps.py
+      - name: Build interpreter bootstrap and regression checks
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target Mother3Recomp host_menu_test presentation_layout_tests touch_input_tests -j2
+      - name: Test runtime menu, input, layout and touch
+        run: ctest --test-dir build -R 'host_menu_test|presentation_layout_tests|touch_input_tests' --output-on-failure
