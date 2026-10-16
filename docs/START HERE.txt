@@ -1,2 +1,5 @@
-See ../README.md for current downloads, controls, patch support and build instructions.
-Historical notes are in releases/v1.0.3.md.
+MOTHER 3 Recomp
+
+Extract the package and open Mother3Recomp.exe.
+Select your game files in the launcher, then choose Play.
+See README.md for setup, controls and troubleshooting.

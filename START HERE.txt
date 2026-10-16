@@ -1,8 +1,4 @@
 MOTHER 3 Recomp
 
-Run Mother3Recomp.exe to open the launcher.
-Provide your own ROM and optional BIOS.
-F10 toggles the bezel; F11 opens the runtime menu; Escape exits.
-
-README.md lists current public downloads and build instructions.
-Candidate 1.0.6 source changes are documented in docs/FIXES-1.0.6.md.
+Downloads and quick start: README.md
+Setup and controls: docs/PLAYER-README.md
