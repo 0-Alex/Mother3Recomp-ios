@@ -40,3 +40,14 @@ _to_delete/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local analysis and signing files
+graphify-out/
+*.p12
+*.keystore
+*-keystore.b64
+__pycache__/
+*.pyc
+
+recomp_coverage_*.json
+traces/

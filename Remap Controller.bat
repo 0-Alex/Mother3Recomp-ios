@@ -1,3 +1,3 @@
 @echo off
 cd /d "%~dp0"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0remap_controller.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\remap_controller.ps1"
