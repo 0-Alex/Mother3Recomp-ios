@@ -44,7 +44,7 @@ else:
     launcher = stage / "run_mother3.sh"
     launcher.write_text('#!/bin/sh\ncd -- "$(dirname -- "$0")" || exit 1\nexec ./Mother3Recomp "$@"\n')
     launcher.chmod(0o755)
-shutil.copytree(ROOT / "assets/fonts", stage / "assets/fonts")
+shutil.copytree(a.binary.parent / "assets/fonts", stage / "assets/fonts")
 images = stage / "assets/img"
 images.mkdir(parents=True)
 for image in (ROOT / "assets/img").iterdir():
