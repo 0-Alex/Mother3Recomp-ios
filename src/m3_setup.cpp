@@ -1,0 +1,198 @@
+#include "m3_setup.h"
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <initializer_list>
+
+#include "ips_patch.h"
+#include "sha1.h"
+#if defined(GBAGAME_RECOMP_UI)
+#include "launcher_files.h"
+#include "../third_party/tinyfiledialogs.h"
+#endif
+
+namespace fs = std::filesystem;
+
+namespace m3setup {
+namespace {
+
+constexpr std::size_t kBiosSize = 16384, kRomSize = 32u << 20;
+constexpr const char* kEnglishSha1 = "306fb8874533b0fd0796208faa8bed2db4ae77fb";
+constexpr const char* kHqAudioSha1 = "4ffe71ce5c5e1e8d9be5fbd09968b60787169b21";
+constexpr const char* kJapanSha1 = "4f0f493e12c2a8c61b2d809af03f7abf87a85776";
+
+std::vector<std::uint8_t> read(const std::string& path) {
+    std::vector<std::uint8_t> out;
+    if (path.empty()) return out;
+    if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+        std::uint8_t buf[1 << 16];
+        for (std::size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) out.insert(out.end(), buf, buf + n);
+        std::fclose(f);
+    }
+    return out;
+}
+
+std::string first_line(const std::string& path) {
+    std::FILE* f = std::fopen(path.c_str(), "rb");
+    if (!f) return {};
+    char line[4096] = {};
+    if (!std::fgets(line, sizeof line, f)) line[0] = 0;
+    std::fclose(f);
+    std::string s = line;
+    while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
+    return s;
+}
+
+void write_line(const std::string& path, const std::string& value) {
+    if (std::FILE* f = std::fopen(path.c_str(), "wb")) {
+        std::fprintf(f, "%s\n", value.c_str());
+        std::fclose(f);
+    }
+}
+
+std::string sha1(const std::vector<std::uint8_t>& b) { return gba::sha1(b.data(), b.size()).hex(); }
+
+bool is_english(const std::string& sha) { return sha == kEnglishSha1 || sha == kHqAudioSha1; }
+
+// A [Launcher] value from config.ini (only needed to carry over classic-launcher patch setups).
+std::string launcher_value(const std::string& dir, const char* key) {
+    std::FILE* f = std::fopen((dir + "/config.ini").c_str(), "rb");
+    if (!f) return {};
+    std::string value;
+    bool in = false;
+    char line[4096];
+    while (std::fgets(line, sizeof line, f)) {
+        std::string l = line;
+        while (!l.empty() && (l.back() == '\n' || l.back() == '\r' || l.back() == ' ')) l.pop_back();
+        if (!l.empty() && l[0] == '[') { in = l == "[Launcher]"; continue; }
+        const auto eq = l.find('=');
+        if (!in || eq == std::string::npos) continue;
+        std::string k = l.substr(0, eq);
+        while (!k.empty() && k.back() == ' ') k.pop_back();
+        if (k != key) continue;
+        const auto v = l.find_first_not_of(' ', eq + 1);
+        value = v == std::string::npos ? std::string{} : l.substr(v);
+    }
+    std::fclose(f);
+    return value;
+}
+
+bool apply_patch(std::vector<std::uint8_t>& rom, const std::string& patch_path) {
+    const auto patch = read(patch_path);
+    std::uint8_t* out = nullptr;
+    std::size_t out_len = 0;
+    if (patch.empty() || !rom_patch_apply(rom.data(), rom.size(), patch.data(), patch.size(), &out, &out_len))
+        return false;
+    rom.assign(out, out + out_len);
+    std::free(out);
+    return true;
+}
+
+// The patched image goes where the classic launcher cached its patch output.
+std::string save_patched(const std::string& dir, const std::string& source, const std::vector<std::uint8_t>& rom) {
+    std::error_code ec;
+    const fs::path folder = fs::path(dir) / "mods" / "rom-patches";
+    fs::create_directories(folder, ec);
+    const std::string out = (folder / (fs::path(source).stem().string() + " (patched).gba")).string();
+    std::FILE* f = std::fopen(out.c_str(), "wb");
+    if (!f) return {};
+    const bool ok = std::fwrite(rom.data(), 1, rom.size(), f) == rom.size();
+    return std::fclose(f) == 0 && ok ? out : std::string{};
+}
+
+#if defined(GBAGAME_RECOMP_UI)
+std::string pick(const char* title, std::initializer_list<const char*> patterns, const char* desc) {
+    char out[4096] = {};
+    return launcher_pick_file(title, patterns.begin(), static_cast<int>(patterns.size()), desc, out, sizeof out)
+               ? std::string(out) : std::string{};
+}
+// tinyfiledialogs drops quote characters on some desktops, so messages avoid them.
+void notice(const char* message) { tinyfd_messageBox("MOTHER 3", message, "ok", "info", 1); }
+bool ask(const char* message) { return tinyfd_messageBox("MOTHER 3", message, "yesno", "question", 1) == 1; }
+#endif
+
+}  // namespace
+
+bool load(const std::string& dir, Files* out) {
+    Files f;
+    f.bios_path = first_line(dir + "/bios.cfg");
+    f.rom_path = first_line(dir + "/rom.cfg");
+    if (read(f.bios_path).size() != kBiosSize) return false;
+    f.rom = read(f.rom_path);
+    if (f.rom.size() != kRomSize) return false;
+    std::string sha = sha1(f.rom);
+    // The classic launcher remembered the Japanese ROM plus its language patch.
+    if (sha == kJapanSha1 && launcher_value(dir, "rom_patch_enabled") == "1") {
+        const std::string source = f.rom_path;
+        if (!apply_patch(f.rom, launcher_value(dir, "rom_patch_path"))) return false;
+        f.rom_path = save_patched(dir, source, f.rom);
+        if (f.rom_path.empty()) return false;
+        write_line(dir + "/rom.cfg", f.rom_path);
+        sha = sha1(f.rom);
+    }
+    if (sha == kJapanSha1) return false;  // needs a translation patch first
+    f.english = is_english(sha);
+    *out = std::move(f);
+    return true;
+}
+
+bool choose(const std::string& dir, Files* files, bool bios) {
+#if defined(GBAGAME_RECOMP_UI)
+    Files next = *files;
+    if (bios || read(next.bios_path).size() != kBiosSize) {
+        for (;;) {
+            const std::string p = pick("Choose your GBA BIOS", {"*.bin", "*.BIN"}, "GBA BIOS (gba_bios.bin)");
+            if (p.empty()) return false;
+            if (read(p).size() == kBiosSize) { next.bios_path = p; break; }
+            notice("That file is not a GBA BIOS. The BIOS is a 16 KB file, usually named gba_bios.bin.");
+        }
+    }
+    for (;;) {
+        const std::string p = pick("Choose your MOTHER 3 ROM", {"*.gba", "*.GBA"}, "GBA ROM (.gba)");
+        if (p.empty()) return false;
+        std::vector<std::uint8_t> rom = read(p);
+        if (rom.size() != kRomSize) {
+            notice("That file is not a MOTHER 3 ROM. MOTHER 3 ROMs are exactly 32 MB.");
+            continue;
+        }
+        std::string sha = sha1(rom), boot = p;
+        if (sha == kJapanSha1) {
+            notice("This is the Japanese ROM. Next, choose the translation patch to apply to it "
+                   "(.ups, .ips or .bps), such as the English v1.3 patch.");
+            const std::string patch = pick("Choose the translation patch", {"*.ups", "*.ips", "*.bps", "*.UPS", "*.IPS", "*.BPS"},
+                                           "ROM patch (.ups, .ips, .bps)");
+            if (patch.empty()) continue;
+            if (!apply_patch(rom, patch)) {
+                notice("That patch does not fit this ROM. Use a patch made for the clean Japanese ROM.");
+                continue;
+            }
+            boot = save_patched(dir, p, rom);
+            if (boot.empty()) {
+                notice("The patched ROM could not be saved in the game folder. Check that the folder is writable.");
+                continue;
+            }
+            sha = sha1(rom);
+        } else if (!is_english(sha) &&
+                   !ask("This ROM is not one of the known MOTHER 3 versions, so it may run slowly or not at all. "
+                        "Use it anyway?")) {
+            continue;
+        }
+        next.rom_path = boot;
+        next.rom = std::move(rom);
+        next.english = is_english(sha);
+        break;
+    }
+    write_line(dir + "/bios.cfg", next.bios_path);
+    write_line(dir + "/rom.cfg", next.rom_path);
+    *files = std::move(next);
+    return true;
+#else
+    (void)dir, (void)files, (void)bios;
+    std::fprintf(stderr, "Pass --rom <MOTHER 3 ROM> and --bios <gba_bios.bin>.\n");
+    return false;
+#endif
+}
+
+}  // namespace m3setup

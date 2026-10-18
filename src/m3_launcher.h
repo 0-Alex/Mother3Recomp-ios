@@ -7,7 +7,7 @@
 
 namespace m3launcher {
 
-enum class Result { Play, Quit };
+enum class Result { Play, Quit, ChangeFiles };  // ChangeFiles: the player wants another ROM or BIOS
 
 // Opens its own SDL window and returns once the player picks Play or quits.
 // Edits `settings` in place and saves them (and gamepad binds) under `dir`.

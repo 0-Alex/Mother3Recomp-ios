@@ -46,6 +46,7 @@ set(MOTHER3_SOURCES
     src/m3_assets.cpp
     src/m3_launcher.cpp
     src/m3_settings.cpp
+    src/m3_setup.cpp
     src/m3_prompts.cpp
     src/m3_bezel.cpp
     src/m3_mods.cpp
@@ -139,7 +140,7 @@ if(GBAGAME_RECOMP_UI)
     set_property(SOURCE src/main.cpp APPEND PROPERTY
         COMPILE_DEFINITIONS GBAGAME_RECOMP_UI)
     # The game-owned launcher writes gamepad binds through recomp-ui's input.ini store.
-    set_property(SOURCE src/m3_launcher.cpp src/m3_prompts.cpp src/m3_mods.cpp APPEND PROPERTY
+    set_property(SOURCE src/m3_launcher.cpp src/m3_prompts.cpp src/m3_mods.cpp src/m3_setup.cpp APPEND PROPERTY
         COMPILE_DEFINITIONS GBAGAME_RECOMP_UI)
     target_include_directories(${MOTHER3_TARGET} PRIVATE
         "${RECOMP_UI_ROOT}/src/common" "${RECOMP_UI_ROOT}/src/consoles/gba")

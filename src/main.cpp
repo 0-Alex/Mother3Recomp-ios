@@ -14,6 +14,7 @@
 #include "m3_assets.h"
 #include "m3_launcher.h"
 #include "m3_settings.h"
+#include "m3_setup.h"
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -67,36 +68,46 @@ std::vector<std::uint8_t> read_file(const std::string& path) {
     return out;
 }
 
-// The game-owned launcher runs by default once a ROM is configured; until then
-// (first run) the classic launcher handles BIOS/ROM setup. --classic-launcher
-// forces the old one and --no-launcher skips both. Returns false when the
-// player quits; on Play it skips the classic launcher.
+// The game-owned launcher is the only launcher: on first run (or from Settings >
+// Change game files) it asks for the BIOS and ROM itself and applies a language
+// patch to a Japanese ROM. --no-launcher skips it; --classic-launcher still opens
+// the old setup launcher on request. Returns false when the player quits.
 bool m3_launcher_preboot(std::vector<std::string>& args) {
-    bool requested = true;
     for (auto it = args.begin(); it != args.end();) {
-        if (*it == "--classic-launcher") requested = false;
-        if (*it == "--no-launcher") requested = false;
-        if (*it == "--m3-launcher" || *it == "--classic-launcher") it = args.erase(it); else ++it;
+        if (*it == "--no-launcher") return true;
+        if (*it == "--classic-launcher") { args.erase(it); return true; }
+        if (*it == "--m3-launcher") it = args.erase(it); else ++it;
     }
-    if (!requested) return true;
     // Config files live next to the executable, where the runtime reads them.
     std::string dir = args[0];
     const auto slash = dir.find_last_of("/\\");
     dir = slash == std::string::npos ? "." : dir.substr(0, slash);
-    std::string rom_path = arg_value(args, "--rom");
-    if (rom_path.empty()) rom_path = cfg_path(dir + "/rom.cfg");
-    m3assets::Rom rom(read_file(rom_path));
-    if (!rom.ok()) {  // first run, or a ROM the new launcher can't draw from
-        if (!rom_path.empty())
-            std::fprintf(stderr, "m3-launcher: no usable English v1.3 ROM at '%s'; using the classic launcher.\n",
-                         rom_path.c_str());
-        return true;
+    m3setup::Files files;
+    if (const std::string rom = arg_value(args, "--rom"); !rom.empty()) {  // typed paths win
+        files.rom_path = rom;
+        files.rom = read_file(rom);
+        files.bios_path = arg_value(args, "--bios");
+        if (files.bios_path.empty()) files.bios_path = cfg_path(dir + "/bios.cfg");
+        files.english = m3assets::Rom(files.rom).ok();
+    } else if (!m3setup::load(dir, &files) && !m3setup::choose(dir, &files, false)) {
+        return false;  // the player cancelled setup
     }
     m3settings::Settings settings = m3settings::load(dir);
-    if (m3launcher::run(rom, settings, dir) == m3launcher::Result::Quit) return false;
-    if (arg_value(args, "--rom").empty()) args.insert(args.end(), {"--rom", rom_path});
-    const std::string bios = cfg_path(dir + "/bios.cfg");
-    if (arg_value(args, "--bios").empty() && !bios.empty()) args.insert(args.end(), {"--bios", bios});
+    for (;;) {
+        m3assets::Rom rom(files.english ? files.rom : std::vector<std::uint8_t>{});
+        if (!rom.ok()) {  // other translations: their text tables aren't the ones the launcher draws from
+            std::fprintf(stderr, "m3-launcher: '%s' isn't the English v1.3 ROM; starting the game directly.\n",
+                         files.rom_path.c_str());
+            break;
+        }
+        const m3launcher::Result result = m3launcher::run(rom, settings, dir);
+        if (result == m3launcher::Result::Quit) return false;
+        if (result == m3launcher::Result::Play) break;
+        m3setup::choose(dir, &files, true);  // cancelling keeps the current files
+    }
+    if (arg_value(args, "--rom").empty()) args.insert(args.end(), {"--rom", files.rom_path});
+    if (arg_value(args, "--bios").empty() && !files.bios_path.empty())
+        args.insert(args.end(), {"--bios", files.bios_path});
     // Right after argv[0], so flags typed on the command line still win.
     const auto flags = m3settings::game_args(settings);
     args.insert(args.begin() + 1, flags.begin(), flags.end());

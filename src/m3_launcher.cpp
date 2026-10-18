@@ -234,7 +234,7 @@ struct Pads {
 enum class Page { Main, Settings, Controls, Mods };
 const char* const kItems[] = {"Play", "Settings", "Controls", "Mods", "Quit"};
 constexpr int kItemCount = 5;
-constexpr int kSettingRows = 8;
+constexpr int kSettingRows = 9;  // 8 options + Change game files
 constexpr int kControlRows = m3settings::kButtonCount + 1;  // buttons + Reset
 
 void apply_display(SDL_Window* win, int mode) {
@@ -401,7 +401,11 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
                     if (in == Input::Up) row = (row + kSettingRows - 1) % kSettingRows;
                     if (in == Input::Down) row = (row + 1) % kSettingRows;
                     if (in == Input::Left) change_setting(-1);
-                    if (in == Input::Right || in == Input::Confirm) change_setting(1);
+                    if (in == Input::Confirm && row == kSettingRows - 1) {
+                        leave_page();
+                        result = Result::ChangeFiles;
+                        running = false;
+                    } else if (in == Input::Right || in == Input::Confirm) change_setting(1);
                     if (in == Input::Back) leave_page();
                     break;
                 case Page::Controls:
@@ -468,11 +472,12 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             const std::string values[kSettingRows] = {
                 kFlavors[st.flavor], kDisplayModes[st.fullscreen], std::to_string(st.scale) + "x",
                 st.sharp_filter ? "Sharp" : "Pixel", "", std::to_string(st.volume) + "%",
-                kPromptStyles[st.prompt_style], st.widescreen ? "On (16:9)" : "Off"};
+                kPromptStyles[st.prompt_style], st.widescreen ? "On (16:9)" : "Off", ""};
             const char* labels[kSettingRows] = {"Window flavor", "Display", "Window size", "Scaling",
-                                                "Screen colors", "Volume", "Button prompts", "Widescreen"};
+                                                "Screen colors", "Volume", "Button prompts", "Widescreen",
+                                                "Change game files (ROM, BIOS)"};
             for (int i = 0; i < kSettingRows; ++i) {
-                const int y = kPy + 8 + i * 13;
+                const int y = kPy + 8 + i * 12;
                 if (i == row) ui.cursor(kLabelX - 10, y + 4);
                 ui.text(labels[i], kLabelX, y);
                 std::string v = values[i];

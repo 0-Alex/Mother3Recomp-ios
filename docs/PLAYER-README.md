@@ -32,12 +32,15 @@ Keep the executable with its bundled libraries and assets. Back up saves before 
 
 ## Launcher
 
-The first launch asks for your BIOS and ROM. After that, MOTHER 3's own launcher opens: the party walks around
-outside Tazmily while you pick **Play**, **Settings**, **Controls** or **Mods**. Everything it shows is drawn from
-your ROM; no game art ships with the download. Run with `--classic-launcher` to reopen the setup launcher.
+The first launch asks for your BIOS and ROM in your system's file picker. Pick the English v1.3 ROM, or the
+Japanese ROM and then its translation patch (the patched ROM is saved in `mods/rom-patches`). After that,
+MOTHER 3's own launcher opens: the party walks around outside Tazmily while you pick **Play**, **Settings**,
+**Controls** or **Mods**. Everything it shows is drawn from your ROM; no game art ships with the download.
 
 - **Settings:** window flavor (the game's Plain to Melon), display mode, window size, scaling, screen colors,
-  volume, and **Button prompts**.
+  volume, **Button prompts**, and **Change game files** to pick a different ROM or BIOS.
+- **Other translations** (such as Spanish) start the game directly, because the launcher draws its text from the
+  English ROM. Their settings still come from the last time you used the launcher.
 - **Controls:** pick a GBA button, then press the new key or controller button; whichever you press is the one
   that changes (Escape cancels). On controllers the left stick always moves; the D-pad is the rebindable second input.
 - **Getting around:** each page shows its buttons at the bottom. B (or Z / Escape) goes back, and LB / RB
