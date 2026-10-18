@@ -45,7 +45,7 @@ ext.gbaGame = [
     engineRoot     : engineRoot,
     recompUiRoot   : recompUiRoot,
     nativeJobs     : 2,
-    releaseAbis    : ["arm64-v8a"],
+    releaseAbis    : ["arm64-v8a", "x86_64"],  // x86_64 runs natively on BlueStacks and Chromebooks
     debugAbis      : ["arm64-v8a", "x86_64"],
 ]
 

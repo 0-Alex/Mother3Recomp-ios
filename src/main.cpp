@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <limits>
 #include <jni.h>
+#include <SDL.h>
 #include "ips_patch.h"
 #include "mobile_platform.h"
 #elif defined(__linux__)
@@ -197,6 +198,9 @@ int mother3_main(int argc, char** argv) {
     opts.orientation = gbarecomp::RunOptions::Orientation::Landscape;
     opts.resume_suspend_state_on_launch = true;
     opts.ui_touch_friendly = true;
+    // OpenSL ES stops its AudioTrack whenever the 2-block queue runs dry, which chops the
+    // sound on devices that deny the low-latency path; SDL's Java AudioTrack driver blocks instead.
+    SDL_SetHint(SDL_HINT_AUDIODRIVER, "android");
     opts.touch_pad_default = 1;
     // shortcut: rewind/fast-forward stay desktop-only until rewind memory is measured on phones.
     opts.expose_assist_tools = false;
