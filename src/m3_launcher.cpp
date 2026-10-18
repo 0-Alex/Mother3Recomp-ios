@@ -38,8 +38,12 @@ constexpr Pass kPasses[] = {
 };
 constexpr int kPassCount = sizeof kPasses / sizeof kPasses[0];
 
-struct Member { const char* name; int sprite; };
-constexpr Member kParty[] = {{"Lucas", 4}, {"Kumatora", 13}, {"Duster", 15}, {"Boney", 10}};
+// stride: frame offsets for step, stand, step, stand; null uses the sprite's ROM walk cycle.
+// Duster's ROM cycle is his limp, so the launcher steps him between his two stride poses.
+constexpr int kDusterStride[4] = {16, 0, 40, 0};
+struct Member { const char* name; int sprite; const int* stride; };
+constexpr Member kParty[] = {{"Lucas", 4, nullptr}, {"Kumatora", 13, nullptr},
+                             {"Duster", 15, kDusterStride}, {"Boney", 10, nullptr}};
 constexpr int kPartySize = 4;
 constexpr int kFollowGap = 18;  // frames of leader history between party members
 
@@ -465,7 +469,8 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
         const int walk_step = frame / 11;
         for (int k : order) {
             const Step s = walker.member(k);
-            const int f = rom.walk_frame(kParty[k].sprite, s.dir, walk_step);
+            const int f = kParty[k].stride ? s.dir + kParty[k].stride[walk_step % 4]
+                                           : rom.walk_frame(kParty[k].sprite, s.dir, walk_step);
             cv.draw(rom.sprite_frame(kParty[k].sprite, f), s.at.x - cam_x - 32, s.at.y - cam_y - 48);
         }
 
