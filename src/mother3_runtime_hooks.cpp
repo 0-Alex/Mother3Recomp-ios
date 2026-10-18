@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <initializer_list>
 #include "runtime_arm.h"
 #include "mother3_runtime_hooks.h"
 #include "hq_audio_mixer_data.h"
@@ -551,12 +552,15 @@ int force_interp_mutable_ram(uint32_t pc, int thumb) {
         m3prompts::tick();
         m3widescreen::tick();
     }
-    const uint32_t mixer_start =
-        (pc >= kHqMixerJapaneseStart && pc < kHqMixerJapaneseStart + kHqMixerSize)
-            ? kHqMixerJapaneseStart
-            : ((pc >= kHqMixerFanStart && pc < kHqMixerFanStart + kHqMixerSize)
-                ? kHqMixerFanStart : 0u);
-    if (mixer_start && is_hq_mixer_present(mixer_start)) {
+    // The two load ranges overlap, so pick the one whose mixer is actually installed.
+    uint32_t mixer_start = 0u;
+    for (uint32_t start : {kHqMixerFanStart, kHqMixerJapaneseStart}) {
+        if (pc >= start && pc < start + kHqMixerSize && is_hq_mixer_present(start)) {
+            mixer_start = start;
+            break;
+        }
+    }
+    if (mixer_start) {
         if (pc == mixer_start && thumb && !hq_mixer_interp_forced()) {
             return 0;  // Handled by run_hq_mixer_native() in dispatch_flash_ram_variant
         }
