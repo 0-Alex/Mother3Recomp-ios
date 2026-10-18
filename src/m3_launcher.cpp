@@ -280,8 +280,10 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
         built_flavor = st.flavor;
     };
 
-    // Test hooks: M3_LAUNCHER_PAGE opens a page; M3_LAUNCHER_SHOT saves the canvas and quits.
+    // Test hooks: M3_LAUNCHER_PAGE opens a page; M3_LAUNCHER_SHOT saves the canvas and quits;
+    // M3_LAUNCHER_PADS="frame:button,..." (SDL button numbers) presses controller buttons.
     const char* shot = std::getenv("M3_LAUNCHER_SHOT");
+    const char* pad_script = std::getenv("M3_LAUNCHER_PADS");
     Page page = Page::Main;
     int cursor_at = 0;
     if (const char* p = std::getenv("M3_LAUNCHER_PAGE")) {
@@ -534,6 +536,17 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
         SDL_RenderCopy(ren, tex, nullptr, nullptr);
         SDL_RenderPresent(ren);
         ++frame;
+        for (const char* q = pad_script; q && *q;) {
+            char* end;
+            const long at = std::strtol(q, &end, 10), button = *end == ':' ? std::strtol(end + 1, &end, 10) : -1;
+            if (at == frame && button >= 0) {
+                SDL_Event ev{};
+                ev.type = SDL_CONTROLLERBUTTONDOWN;
+                ev.cbutton.button = static_cast<Uint8>(button);
+                SDL_PushEvent(&ev);
+            }
+            q = *end == ',' ? end + 1 : nullptr;
+        }
 
         if (shot && frame == 150) {
             if (SDL_Surface* s = SDL_CreateRGBSurfaceWithFormatFrom(cv.px.data(), kW, kH, 32, kW * 4,
