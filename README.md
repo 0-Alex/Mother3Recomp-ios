@@ -7,11 +7,11 @@ Bring your own ROM and game files.
 
 | Platform | Version | Download |
 | --- | --- | --- |
-| Windows x64 | 1.0.6 | [Windows ZIP](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/download/v1.0.6/Mother3Recomp-v1.0.6-windows-x64.zip) |
-| Linux x86_64 / Steam Deck | 1.0.6 | [Linux archive](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/download/v1.0.6/Mother3Recomp-v1.0.6-linux-x86_64.tar.gz) |
-| Android ARM64 | 1.0.6 | [Android APK](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/download/v1.0.6/Mother3Recomp-v1.0.6-android.apk) |
+| Windows x64 | 1.0.7 | [Windows ZIP](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/download/v1.0.7/Mother3Recomp-v1.0.7-windows-x64.zip) |
+| Linux x86_64 / Steam Deck | 1.0.7 | [Linux archive](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/download/v1.0.7/Mother3Recomp-v1.0.7-linux-x86_64.tar.gz) |
+| Android (ARM64 and x86_64) | 1.0.7 | [Android APK](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/download/v1.0.7/Mother3Recomp-v1.0.7-android.apk) |
 
-**v1.0.6 updates all platforms.**
+**v1.0.7 updates all platforms.** [What's new](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.7)
 
 ## Features
 
