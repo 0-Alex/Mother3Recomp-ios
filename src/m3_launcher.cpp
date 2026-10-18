@@ -291,7 +291,7 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
 
     Ui ui{rom, {}};
     std::vector<int> item_x;
-    for (int i = 0, x = 18; i < kItemCount; ++i) {
+    for (int i = 0, x = 26; i < kItemCount; ++i) {  // same column as the page text below
         item_x.push_back(x);
         x += ui.width(kItems[i]) + 22;
     }
@@ -450,8 +450,8 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
 
         cv.draw(command_bar, 0, 0);
         for (int i = 0; i < kItemCount; ++i) {
-            if (i == cursor_at && page == Page::Main) ui.cursor(item_x[i] - 8, 8);
-            ui.text(kItems[i], item_x[i], 4, i == cursor_at ? kInk : (page == Page::Main ? kInk : kDim));
+            if (i == cursor_at && page == Page::Main) ui.cursor(item_x[i] - 10, 11);
+            ui.text(kItems[i], item_x[i], 7, i == cursor_at ? kInk : (page == Page::Main ? kInk : kDim));
         }
 
         constexpr int kPx = 8, kPy = 26, kLabelX = kPx + 18, kRight = kPx + 38 * 8 - 14, kHintY = kPy + 136;
