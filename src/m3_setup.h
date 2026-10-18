@@ -12,7 +12,7 @@ struct Files {
     std::string rom_path;             // the image the game boots (patched output for a Japanese ROM)
     std::string bios_path;
     std::vector<std::uint8_t> rom;    // rom_path's bytes
-    bool english = false;             // English v1.3 (or + HQ Audio): the launcher can draw from it
+    bool drawable = false;            // its tables match English v1.3 (as do translations built on it), so the launcher can draw it
 };
 
 // Loads the remembered files (carrying over a classic-launcher Japanese ROM + patch).

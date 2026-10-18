@@ -7,6 +7,7 @@
 #include <initializer_list>
 
 #include "ips_patch.h"
+#include "m3_assets.h"
 #include "sha1.h"
 #if defined(GBAGAME_RECOMP_UI)
 #include "launcher_files.h"
@@ -63,6 +64,11 @@ void write_line(const std::string& path, const std::string& value) {
 std::string sha1(const std::vector<std::uint8_t>& b) { return gba::sha1(b.data(), b.size()).hex(); }
 
 bool is_english(const std::string& sha) { return sha == kEnglishSha1 || sha == kHqAudioSha1; }
+
+// The launcher draws from the ROM's sprite, map, window and font tables, so any
+// image that keeps English v1.3's layout works (Spanish and other translations
+// built on it, other dumps, extra patches), not only the exact v1.3 file.
+bool drawable(const std::vector<std::uint8_t>& rom) { return m3assets::Rom(rom).ok(); }
 
 // A [Launcher] value from config.ini (only needed to carry over classic-launcher patch setups).
 std::string launcher_value(const std::string& dir, const char* key) {
@@ -141,7 +147,7 @@ bool load(const std::string& dir, Files* out) {
         sha = sha1(f.rom);
     }
     if (sha == kJapanSha1) return false;  // needs a translation patch first
-    f.english = is_english(sha);
+    f.drawable = drawable(f.rom);
     *out = std::move(f);
     return true;
 }
@@ -182,14 +188,14 @@ bool choose(const std::string& dir, Files* files, bool bios) {
                 continue;
             }
             sha = sha1(rom);
-        } else if (!is_english(sha) &&
+        } else if (!is_english(sha) && !drawable(rom) &&
                    !ask("This ROM is not one of the known MOTHER 3 versions, so it may run slowly or not at all. "
                         "Use it anyway?")) {
             continue;
         }
         next.rom_path = boot;
+        next.drawable = drawable(rom);
         next.rom = std::move(rom);
-        next.english = is_english(sha);
         break;
     }
     write_line(dir + "/bios.cfg", next.bios_path);

@@ -42,8 +42,8 @@ MOTHER 3's own launcher opens: the party walks around outside Tazmily while you 
 - **Frame rate 120 (smooth):** on a 120 Hz (or faster) screen, an in-between frame is drawn between every two of
   the game's frames, so scrolling and walking move in half steps. The game itself still runs at its normal speed.
   On a 60 Hz screen it has no effect, and the launcher says so.
-- **Other translations** (such as Spanish) start the game directly, because the launcher draws its text from the
-  English ROM. Their settings still come from the last time you used the launcher.
+- **Other translations** built on the English v1.3 layout (such as Spanish) open the launcher too. A ROM the launcher
+  can't draw from starts the game directly, using the settings from the last time you used the launcher.
 - **Controls:** pick a GBA button, then press the new key or controller button; whichever you press is the one
   that changes (Escape cancels). On controllers the left stick always moves; the D-pad is the rebindable second input.
 - **Getting around:** each page shows its buttons at the bottom. B (or Z / Escape) goes back, and LB / RB
