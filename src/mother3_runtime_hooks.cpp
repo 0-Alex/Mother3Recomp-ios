@@ -7,6 +7,7 @@
 #include "hq_audio_mixer_data.h"
 #include "m3_prompts.h"
 #include "m3_bezel.h"
+#include "m3_mods.h"
 #include "m3_settings.h"
 #include <SDL.h>
 #include <string>
@@ -544,7 +545,10 @@ int run_hq_mixer_native(uint32_t mixer_start) {
 int force_interp_mutable_ram(uint32_t pc, int thumb) {
     // Runs at every dispatch, so only a counter here; tick() limits itself further.
     static unsigned s_dispatches = 0;
-    if ((++s_dispatches & 0x3FFu) == 0) m3prompts::tick();
+    if ((++s_dispatches & 0x3FFu) == 0) {
+        m3mods::apply_deferred();  // no-op after the first call
+        m3prompts::tick();
+    }
     const uint32_t mixer_start =
         (pc >= kHqMixerJapaneseStart && pc < kHqMixerJapaneseStart + kHqMixerSize)
             ? kHqMixerJapaneseStart
@@ -693,20 +697,24 @@ bool mother3_apply_hq_audio_patch(std::uint8_t* rom, std::size_t rom_size,
     return true;
 }
 
-// Prompts only remember the image here; they edit it once the game runs, after the
-// runtime has hashed it, so the stock image keeps its native code path.
+// Mods (on the stock image, so BPS/UPS checksums match), then prompts and the
+// bezel, then HQ audio. Data-only mods and the prompts edit the image later,
+// after the runtime has hashed it, so it keeps its native code path.
 bool mother3_rom_post_load(std::uint8_t* rom, std::size_t rom_size, const char* source_sha1) {
+    std::string dir = ".";
+    if (char* base = SDL_GetBasePath()) {
+        dir = base;
+        SDL_free(base);
+        if (!dir.empty() && (dir.back() == '\\' || dir.back() == '/')) dir.pop_back();
+    }
+    const bool code_mods = m3mods::apply(rom, rom_size, dir);
     m3prompts::attach(rom, rom_size, source_sha1);
 #if defined(_WIN32)
     // mother3_bezel.dll draws a bezel composed from this ROM; refresh it if the flavor changed.
-    if (char* base = SDL_GetBasePath()) {
-        std::string dir = base;
-        SDL_free(base);
-        if (!dir.empty() && (dir.back() == '\\' || dir.back() == '/')) dir.pop_back();
-        m3bezel::ensure(rom, rom_size, dir, m3settings::load(dir).flavor);
-    }
+    m3bezel::ensure(rom, rom_size, dir, m3settings::load(dir).flavor);
 #endif
-    return mother3_apply_hq_audio_patch(rom, rom_size, source_sha1);
+    const bool hq = mother3_apply_hq_audio_patch(rom, rom_size, source_sha1);
+    return code_mods || hq;
 }
 
 void mother3_install_runtime_hooks() {

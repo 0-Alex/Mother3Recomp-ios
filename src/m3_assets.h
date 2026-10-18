@@ -17,6 +17,7 @@ public:
     // Takes the 32 MiB ROM image; ok() is false when the tables don't match v1.3.
     explicit Rom(std::vector<std::uint8_t> bytes);
     bool ok() const { return ok_; }
+    const std::vector<std::uint8_t>& bytes() const { return b_; }
 
     int sprite_frame_count(int sprite) const;
     // 64x64 canvas with the sprite's feet at (32, 48).

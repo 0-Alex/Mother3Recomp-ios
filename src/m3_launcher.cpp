@@ -1,5 +1,7 @@
 #include "m3_launcher.h"
 
+#include "m3_mods.h"
+
 #include <SDL.h>
 
 #include <algorithm>
@@ -296,8 +298,17 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
     bool capturing = false, running = true;
     Result result = Result::Quit;
 
+    std::vector<m3mods::Mod> mods;
+    int mods_scroll = 0;
+    auto open_mods = [&] {
+        mods = m3mods::list(dir);
+        m3mods::classify(dir, rom.bytes(), mods);
+        mods_scroll = 0;
+    };
+    if (page == Page::Mods) open_mods();
     auto leave_page = [&] {
-        m3settings::save(dir, st);
+        if (page == Page::Mods) m3mods::save_enabled(dir, mods);
+        else m3settings::save(dir, st);
         page = Page::Main;
         capturing = false;
     };
@@ -355,7 +366,11 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
                     if (in == Input::Confirm) {
                         if (cursor_at == 0) { result = Result::Play; running = false; }
                         else if (cursor_at == kItemCount - 1) running = false;
-                        else { page = static_cast<Page>(cursor_at); row = column = 0; }
+                        else {
+                            page = static_cast<Page>(cursor_at);
+                            row = column = 0;
+                            if (page == Page::Mods) open_mods();
+                        }
                     }
                     break;
                 case Page::Settings:
@@ -374,9 +389,19 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
                         if (column == 0) st.keys = m3settings::defaults().keys; else pads.reset();
                     } else if (in == Input::Confirm && (column == 0 || pads.available())) capturing = true;
                     break;
-                case Page::Mods:
-                    if (in == Input::Confirm || in == Input::Back) page = Page::Main;
+                case Page::Mods: {  // rows: each mod, then "Open mods folder", then "Back"
+                    const int rows = static_cast<int>(mods.size()) + 2;
+                    if (in == Input::Up) row = (row + rows - 1) % rows;
+                    if (in == Input::Down) row = (row + 1) % rows;
+                    if (in == Input::Back || (in == Input::Confirm && row == rows - 1)) leave_page();
+                    else if (in == Input::Confirm && row == rows - 2) {
+                        const std::string url = "file:///" + m3mods::folder(dir);
+                        SDL_OpenURL(url.c_str());
+                    } else if (in == Input::Confirm && mods[row].valid) {
+                        mods[row].enabled = !mods[row].enabled;
+                    }
                     break;
+                }
             }
         }
         if (built_flavor != st.flavor) build_windows();
@@ -454,9 +479,34 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
                 ui.text(pads.available() ? pad : "-", pad_x, y, i == row && column == 1 ? kHot : kInk);
             }
         } else {  // Mods
-            cv.draw(note, (kW - note.w) / 2, 70);
-            const std::string msg = "Mods are coming soon.";
-            ui.text(msg, (kW - ui.width(msg)) / 2, 82);
+            cv.draw(page_win, kPx, kPy);
+            constexpr int kVisible = 7;
+            const int count = static_cast<int>(mods.size());
+            if (row < count) mods_scroll = std::clamp(mods_scroll, row - kVisible + 1, row);
+            if (count == 0) {
+                ui.text("No mods yet. Put .ips, .bps or .ups", kLabelX, kPy + 12, kDim);
+                ui.text("patches in the mods folder.", kLabelX, kPy + 24, kDim);
+            }
+            for (int v = 0; v < std::min(kVisible, count); ++v) {
+                const int i = mods_scroll + v;
+                if (i >= count) break;
+                const int y = kPy + 10 + v * 13;
+                const m3mods::Mod& m = mods[i];
+                if (i == row) ui.cursor(kLabelX - 10, y + 4);
+                cv.fill(kLabelX, y + 2, 8, 8, kInk);  // checkbox
+                cv.fill(kLabelX + 1, y + 3, 6, 6, m.enabled ? kHot : 0xFFF4EEE8u);
+                std::string name = m.file;
+                while (ui.width(name) > 170 && name.size() > 4) name.pop_back();
+                ui.text(name, kLabelX + 12, y, m.valid ? kInk : kDim);
+                if (!m.valid) ui.text_right("doesn't fit this ROM", kRight, y, kDim);
+                else if (m.changes_code) ui.text_right("slower", kRight, y, kDim);
+            }
+            const int y_open = kPy + 10 + kVisible * 13 + 4;
+            if (row == count) ui.cursor(kLabelX - 10, y_open + 4);
+            ui.text("Open mods folder", kLabelX, y_open);
+            if (row == count + 1) ui.cursor(kLabelX - 10, y_open + 17);
+            ui.text("Back", kLabelX, y_open + 13);
+            ui.text("Slower: changes game code, runs in compatibility mode.", kLabelX, kPy + 136, kDim);
         }
 
         SDL_UpdateTexture(tex, nullptr, cv.px.data(), kW * 4);
@@ -475,7 +525,7 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             running = false;
         }
     }
-    if (page != Page::Main && !shot) m3settings::save(dir, st);  // closing the window keeps edits
+    if (page != Page::Main && !shot) leave_page();  // closing the window keeps edits
 
     SDL_DestroyTexture(tex);
     SDL_DestroyRenderer(ren);
