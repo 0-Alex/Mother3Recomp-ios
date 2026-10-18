@@ -9,12 +9,16 @@
 #include <string>
 #include <vector>
 
+#if defined(GBAGAME_RECOMP_UI)
+#include "gba_pad_binds.h"
+#endif
+
 namespace m3launcher {
 namespace {
 
 // 16:9 canvas; deliberately not 240x160 so the in-game bezel hook ignores it.
 constexpr int kW = 320, kH = 180;
-constexpr std::uint32_t kInk = 0xFF383040u;
+constexpr std::uint32_t kInk = 0xFF383040u, kDim = 0xFF8A7F86u, kHot = 0xFFC0304Au;
 
 // Scene: the crossroads by the bell tower north of Tazmily (map 36, 64 tiles wide).
 constexpr int kSceneMap = 36, kSceneWidthTiles = 64;
@@ -28,6 +32,12 @@ struct Member { const char* name; int sprite; };
 constexpr Member kParty[] = {{"Lucas", 4}, {"Kumatora", 13}, {"Duster", 15}, {"Boney", 10}};
 constexpr int kPartySize = 4;
 constexpr int kFollowGap = 18;  // frames of leader history between party members
+
+// Window flavors: 7 sets of 6 menu palettes in the ROM; the first of each is the window.
+const char* const kFlavors[] = {"Plain", "Mint", "Strawberry", "Banana", "Peanut", "Grape", "Melon"};
+const char* const kDisplayModes[] = {"Windowed", "Fullscreen", "Exclusive fullscreen"};
+const char* const kScreens[] = {"raw", "backlit", "frontlit", "unlit", "classic"};
+const char* const kScreenNames[] = {"Raw", "Backlit", "Frontlit", "Unlit", "Classic"};
 
 // Standing frames run clockwise from facing down; walk cycles are +8 and +16.
 enum Dir { kDown = 0, kLeft = 2, kUp = 4, kRight = 6 };
@@ -53,33 +63,49 @@ struct Canvas {
     }
 };
 
-int text_width(const m3assets::Rom& rom, const std::string& s) {
-    int w = 0, adv;
-    for (char c : s) { rom.glyph(c, &adv); w += adv; }
-    return w;
-}
-
-void text(Canvas& cv, const m3assets::Rom& rom, const std::string& s, int x, int y) {
-    int adv;
-    for (char c : s) {
-        cv.draw(rom.glyph(c, &adv), x, y, kInk);
-        x += adv;
+struct Ui {
+    const m3assets::Rom& rom;
+    Canvas cv;
+    int width(const std::string& s) const {
+        int w = 0, adv;
+        for (char c : s) { rom.glyph(c, &adv); w += adv; }
+        return w;
     }
-}
+    void text(const std::string& s, int x, int y, std::uint32_t color = kInk) {
+        int adv;
+        for (char c : s) {
+            cv.draw(rom.glyph(c, &adv), x, y, color);
+            x += adv;
+        }
+    }
+    void text_right(const std::string& s, int right, int y, std::uint32_t color = kInk) {
+        text(s, right - width(s), y, color);
+    }
+    // Right-pointing triangle; the ROM font has no usable '<' / '>'.
+    void cursor(int x, int y, std::uint32_t color = kInk) {
+        for (int k = 0; k < 4; ++k) cv.fill(x + k, y + k, 1, 7 - 2 * k, color);
+    }
+    void cursor_left(int x, int y, std::uint32_t color) {
+        for (int k = 0; k < 4; ++k) cv.fill(x + 3 - k, y + k, 1, 7 - 2 * k, color);
+    }
+    // "< value >" right-aligned at `right`, used for adjustable settings.
+    void choice(const std::string& v, int right, int y, bool active) {
+        const std::uint32_t c = active ? kHot : kInk;
+        if (!active) { text_right(v, right, y, c); return; }
+        cursor(right - 4, y + 4, c);
+        text_right(v, right - 8, y, c);
+        cursor_left(right - 8 - width(v) - 8, y + 4, c);
+    }
+};
 
-void cursor(Canvas& cv, int x, int y) {
-    for (int k = 0; k < 4; ++k) cv.fill(x + k, y + k, 1, 7 - 2 * k, kInk);
-}
-
-const char* const kItems[] = {"Play", "Settings", "Controls", "Mods", "Quit"};
-constexpr int kItemCount = 5;
-
-enum class Input { None, Prev, Next, Confirm, Back };
+enum class Input { None, Up, Down, Left, Right, Confirm, Back };
 
 Input map_key(SDL_Keycode k) {
     switch (k) {
-        case SDLK_LEFT: case SDLK_UP: case SDLK_a: case SDLK_w: return Input::Prev;
-        case SDLK_RIGHT: case SDLK_DOWN: case SDLK_d: case SDLK_s: return Input::Next;
+        case SDLK_UP: case SDLK_w: return Input::Up;
+        case SDLK_DOWN: case SDLK_s: return Input::Down;
+        case SDLK_LEFT: case SDLK_a: return Input::Left;
+        case SDLK_RIGHT: case SDLK_d: return Input::Right;
         case SDLK_RETURN: case SDLK_x: case SDLK_SPACE: return Input::Confirm;
         case SDLK_ESCAPE: case SDLK_z: case SDLK_BACKSPACE: return Input::Back;
         default: return Input::None;
@@ -88,8 +114,10 @@ Input map_key(SDL_Keycode k) {
 
 Input map_button(Uint8 b) {
     switch (b) {
-        case SDL_CONTROLLER_BUTTON_DPAD_LEFT: case SDL_CONTROLLER_BUTTON_DPAD_UP: return Input::Prev;
-        case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return Input::Next;
+        case SDL_CONTROLLER_BUTTON_DPAD_UP: return Input::Up;
+        case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return Input::Down;
+        case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return Input::Left;
+        case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return Input::Right;
         case SDL_CONTROLLER_BUTTON_A: case SDL_CONTROLLER_BUTTON_START: return Input::Confirm;
         case SDL_CONTROLLER_BUTTON_B: case SDL_CONTROLLER_BUTTON_BACK: return Input::Back;
         default: return Input::None;
@@ -119,9 +147,82 @@ struct Walker {
     }
 };
 
+// Names an SDL gamepad source ("a", "leftshoulder", "lefty-") the way the
+// connected controller labels it.
+std::string pad_name(const std::string& src, SDL_GameControllerType type) {
+    const bool ps = type == SDL_CONTROLLER_TYPE_PS3 || type == SDL_CONTROLLER_TYPE_PS4 ||
+                    type == SDL_CONTROLLER_TYPE_PS5;
+    const bool nin = type == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO;
+    struct Row { const char *sdl, *xbox, *playstation, *nintendo; };
+    // SDL names face buttons by position, so Nintendo's labels are swapped.
+    static const Row kRows[] = {
+        {"a", "A", "Cross", "B"},          {"b", "B", "Circle", "A"},
+        {"x", "X", "Square", "Y"},         {"y", "Y", "Triangle", "X"},
+        {"leftshoulder", "LB", "L1", "L"}, {"rightshoulder", "RB", "R1", "R"},
+        {"lefttrigger", "LT", "L2", "ZL"}, {"righttrigger", "RT", "R2", "ZR"},
+        {"back", "View", "Share", "-"},    {"start", "Menu", "Options", "+"},
+        {"guide", "Xbox", "PS", "Home"},   {"leftstick", "LS", "L3", "LS"},
+        {"rightstick", "RS", "R3", "RS"},  {"dpup", "D-Up", "D-Up", "D-Up"},
+        {"dpdown", "D-Down", "D-Down", "D-Down"},
+        {"dpleft", "D-Left", "D-Left", "D-Left"},
+        {"dpright", "D-Right", "D-Right", "D-Right"},
+        {"leftx-", "LS Left", "LS Left", "LS Left"},
+        {"leftx+", "LS Right", "LS Right", "LS Right"},
+        {"lefty-", "LS Up", "LS Up", "LS Up"},
+        {"lefty+", "LS Down", "LS Down", "LS Down"},
+    };
+    for (const Row& r : kRows)
+        if (src == r.sdl) return ps ? r.playstation : nin ? r.nintendo : r.xbox;
+    return src.empty() ? "-" : src;
+}
+
+// Gamepad binds live in input.ini through recomp-ui's per-controller store.
+struct Pads {
+    std::string path, guid;
+    SDL_GameControllerType type = SDL_CONTROLLER_TYPE_UNKNOWN;
+    void refresh() {
+        guid.clear();
+        for (int i = 0; i < SDL_NumJoysticks(); ++i)
+            if (SDL_IsGameController(i)) {
+                char buf[64];
+                SDL_JoystickGetGUIDString(SDL_JoystickGetDeviceGUID(i), buf, sizeof buf);
+                guid = buf;
+                type = SDL_GameControllerTypeForIndex(i);
+                break;
+            }
+    }
+#if defined(GBAGAME_RECOMP_UI)
+    bool available() const { return !guid.empty(); }
+    std::string label(int b) const {
+        char out[64] = {};
+        rui_pad_binds_label(&kGbaPadSpec, path.c_str(), guid.c_str(), b, out, sizeof out);
+        return pad_name(out, type);
+    }
+    void set(int b, int kind, int code, int dir) {
+        rui_pad_binds_set(&kGbaPadSpec, path.c_str(), guid.c_str(), b, kind, code, dir);
+    }
+    void reset() { rui_pad_binds_reset(&kGbaPadSpec, path.c_str(), guid.c_str()); }
+#else
+    bool available() const { return false; }
+    std::string label(int) const { return "-"; }
+    void set(int, int, int, int) {}
+    void reset() {}
+#endif
+};
+
+enum class Page { Main, Settings, Controls, Mods };
+const char* const kItems[] = {"Play", "Settings", "Controls", "Mods", "Quit"};
+constexpr int kItemCount = 5;
+constexpr int kSettingRows = 7;                         // 6 options + Back
+constexpr int kControlRows = m3settings::kButtonCount + 2;  // buttons + Reset + Back
+
+void apply_display(SDL_Window* win, int mode) {
+    SDL_SetWindowFullscreen(win, mode == 1 ? SDL_WINDOW_FULLSCREEN_DESKTOP : mode == 2 ? SDL_WINDOW_FULLSCREEN : 0);
+}
+
 }  // namespace
 
-Result run(const m3assets::Rom& rom) {
+Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string& dir) {
     const m3assets::Image scene = rom.map(kSceneMap, kSceneWidthTiles);
     if (scene.w < kW || scene.h < kH) return Result::Play;  // can't draw the launcher; just boot
     if (SDL_InitSubSystem(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) return Result::Play;
@@ -137,52 +238,136 @@ Result run(const m3assets::Rom& rom) {
     }
     SDL_RenderSetLogicalSize(ren, kW, kH);
     SDL_RenderSetIntegerScale(ren, SDL_TRUE);
+    apply_display(win, st.fullscreen);
     for (int i = 0; i < SDL_NumJoysticks(); ++i)
         if (SDL_IsGameController(i)) SDL_GameControllerOpen(i);
+    Pads pads{dir + "/input.ini", {}};
+    pads.refresh();
+#if defined(GBAGAME_RECOMP_UI)
+    rui_pad_binds_init(&kGbaPadSpec, pads.path.c_str());
+#endif
 
-    // Test hook: render a few seconds, save the canvas as BMP and quit.
+    // Windows are rebuilt whenever the flavor changes.
+    int built_flavor = -1;
+    m3assets::Image command_bar, status_box, note, page_win;
+    auto build_windows = [&] {
+        const int pal = st.flavor * 6;
+        command_bar = rom.window(kW / 8, 3, pal);
+        status_box = rom.window(kW / 8 / kPartySize, 4, pal);
+        note = rom.window(24, 5, pal);
+        page_win = rom.window(38, 19, pal);
+        built_flavor = st.flavor;
+    };
+
+    // Test hooks: M3_LAUNCHER_PAGE opens a page; M3_LAUNCHER_SHOT saves the canvas and quits.
     const char* shot = std::getenv("M3_LAUNCHER_SHOT");
-    const m3assets::Image command_bar = rom.window(kW / 8, 3, 0);
-    const m3assets::Image status_box = rom.window(kW / 8 / kPartySize, 4, 0);
-    const m3assets::Image note = rom.window(24, 5, 0);
+    Page page = Page::Main;
+    int cursor_at = 0;
+    if (const char* p = std::getenv("M3_LAUNCHER_PAGE")) {
+        page = static_cast<Page>(std::clamp(std::atoi(p), 0, 3));
+        cursor_at = static_cast<int>(page);
+    }
+
+    Ui ui{rom, {}};
     std::vector<int> item_x;
     for (int i = 0, x = 18; i < kItemCount; ++i) {
         item_x.push_back(x);
-        x += text_width(rom, kItems[i]) + 22;
+        x += ui.width(kItems[i]) + 22;
     }
 
     Walker walker;
-    int cursor_at = 0, frame = 0;
-    bool sub_page = false, running = true;
+    int row = 0, column = 0, frame = 0;
+    bool capturing = false, running = true;
     Result result = Result::Quit;
+
+    auto leave_page = [&] {
+        m3settings::save(dir, st);
+        page = Page::Main;
+        capturing = false;
+    };
+    auto change_setting = [&](int delta) {
+        switch (row) {
+            case 0: st.flavor = (st.flavor + 7 + delta) % 7; break;
+            case 1: st.fullscreen = (st.fullscreen + 3 + delta) % 3; apply_display(win, st.fullscreen); break;
+            case 2: st.scale = std::clamp(st.scale + delta, 1, 10); break;
+            case 3: st.sharp_filter = !st.sharp_filter; break;
+            case 4: {
+                int i = 0;
+                while (i < 5 && st.screen != kScreens[i]) ++i;
+                st.screen = kScreens[((i % 5) + 5 + delta) % 5];
+                break;
+            }
+            case 5: st.volume = std::clamp(st.volume + delta * 10, 0, 100); break;
+        }
+    };
 
     while (running) {
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
-            Input in = Input::None;
-            if (e.type == SDL_QUIT) running = false;
-            else if (e.type == SDL_KEYDOWN && !e.key.repeat) in = map_key(e.key.keysym.sym);
-            else if (e.type == SDL_CONTROLLERBUTTONDOWN) in = map_button(e.cbutton.button);
-            else if (e.type == SDL_CONTROLLERDEVICEADDED) SDL_GameControllerOpen(e.cdevice.which);
-            if (sub_page) {
-                if (in == Input::Confirm || in == Input::Back) sub_page = false;
+            if (e.type == SDL_QUIT) { running = false; break; }
+            if (e.type == SDL_CONTROLLERDEVICEADDED) { SDL_GameControllerOpen(e.cdevice.which); pads.refresh(); }
+            if (e.type == SDL_CONTROLLERDEVICEREMOVED) pads.refresh();
+
+            if (capturing) {  // the next key / button becomes the bind; Escape cancels
+                const int b = row;
+                if (e.type == SDL_KEYDOWN && !e.key.repeat) {
+                    if (e.key.keysym.scancode != SDL_SCANCODE_ESCAPE && column == 0)
+                        st.keys[b] = SDL_GetScancodeName(e.key.keysym.scancode);
+                    capturing = false;
+                } else if (column == 1 && e.type == SDL_CONTROLLERBUTTONDOWN) {
+                    pads.set(b, 1, e.cbutton.button, 0);
+                    capturing = false;
+                } else if (column == 1 && e.type == SDL_CONTROLLERAXISMOTION && std::abs(e.caxis.value) > 20000) {
+                    pads.set(b, 2, e.caxis.axis, e.caxis.value < 0 ? -1 : 1);
+                    capturing = false;
+                }
                 continue;
             }
-            if (in == Input::Prev) cursor_at = (cursor_at + kItemCount - 1) % kItemCount;
-            if (in == Input::Next) cursor_at = (cursor_at + 1) % kItemCount;
-            if (in == Input::Back) cursor_at = kItemCount - 1;
-            if (in == Input::Confirm) {
-                if (cursor_at == 0) { result = Result::Play; running = false; }
-                else if (cursor_at == kItemCount - 1) running = false;
-                else sub_page = true;
+
+            Input in = Input::None;
+            if (e.type == SDL_KEYDOWN && !e.key.repeat) in = map_key(e.key.keysym.sym);
+            else if (e.type == SDL_CONTROLLERBUTTONDOWN) in = map_button(e.cbutton.button);
+            if (in == Input::None) continue;
+
+            switch (page) {
+                case Page::Main:
+                    if (in == Input::Left || in == Input::Up) cursor_at = (cursor_at + kItemCount - 1) % kItemCount;
+                    if (in == Input::Right || in == Input::Down) cursor_at = (cursor_at + 1) % kItemCount;
+                    if (in == Input::Back) cursor_at = kItemCount - 1;
+                    if (in == Input::Confirm) {
+                        if (cursor_at == 0) { result = Result::Play; running = false; }
+                        else if (cursor_at == kItemCount - 1) running = false;
+                        else { page = static_cast<Page>(cursor_at); row = column = 0; }
+                    }
+                    break;
+                case Page::Settings:
+                    if (in == Input::Up) row = (row + kSettingRows - 1) % kSettingRows;
+                    if (in == Input::Down) row = (row + 1) % kSettingRows;
+                    if (in == Input::Left) change_setting(-1);
+                    if (in == Input::Right || (in == Input::Confirm && row < kSettingRows - 1)) change_setting(1);
+                    if (in == Input::Back || (in == Input::Confirm && row == kSettingRows - 1)) leave_page();
+                    break;
+                case Page::Controls:
+                    if (in == Input::Up) row = (row + kControlRows - 1) % kControlRows;
+                    if (in == Input::Down) row = (row + 1) % kControlRows;
+                    if (in == Input::Left || in == Input::Right) column ^= 1;
+                    if (in == Input::Back || (in == Input::Confirm && row == kControlRows - 1)) leave_page();
+                    else if (in == Input::Confirm && row == kControlRows - 2) {
+                        if (column == 0) st.keys = m3settings::defaults().keys; else pads.reset();
+                    } else if (in == Input::Confirm && (column == 0 || pads.available())) capturing = true;
+                    break;
+                case Page::Mods:
+                    if (in == Input::Confirm || in == Input::Back) page = Page::Main;
+                    break;
             }
         }
+        if (built_flavor != st.flavor) build_windows();
 
         walker.tick();
         // Keep the leader centred in the space between the menu bars.
         const int cam_x = std::clamp(walker.at.x - kW / 2, 0, scene.w - kW);
         const int cam_y = std::clamp(walker.at.y - 8 - kH / 2, 0, scene.h - kH);
-        Canvas cv;
+        Canvas& cv = ui.cv;
         cv.blit_view(scene, cam_x, cam_y);
 
         // Back-to-front by feet position so nearer members overlap farther ones.
@@ -200,18 +385,55 @@ Result run(const m3assets::Rom& rom) {
 
         cv.draw(command_bar, 0, 0);
         for (int i = 0; i < kItemCount; ++i) {
-            if (i == cursor_at) cursor(cv, item_x[i] - 8, 8);
-            text(cv, rom, kItems[i], item_x[i], 4);
+            if (i == cursor_at && page == Page::Main) ui.cursor(item_x[i] - 8, 8);
+            ui.text(kItems[i], item_x[i], 4, i == cursor_at ? kInk : (page == Page::Main ? kInk : kDim));
         }
-        for (int k = 0; k < kPartySize; ++k) {
-            const int x = k * status_box.w, y = kH - status_box.h;
-            cv.draw(status_box, x, y);
-            text(cv, rom, kParty[k].name, x + (status_box.w - text_width(rom, kParty[k].name)) / 2, y + 8);
-        }
-        if (sub_page) {
+
+        constexpr int kPx = 8, kPy = 26, kLabelX = kPx + 18, kRight = kPx + 38 * 8 - 14;
+        if (page == Page::Main) {
+            for (int k = 0; k < kPartySize; ++k) {
+                const int x = k * status_box.w, y = kH - status_box.h;
+                cv.draw(status_box, x, y);
+                ui.text(kParty[k].name, x + (status_box.w - ui.width(kParty[k].name)) / 2, y + 8);
+            }
+        } else if (page == Page::Settings) {
+            cv.draw(page_win, kPx, kPy);
+            const std::string values[kSettingRows] = {
+                kFlavors[st.flavor], kDisplayModes[st.fullscreen], std::to_string(st.scale) + "x",
+                st.sharp_filter ? "Sharp" : "Pixel", "", std::to_string(st.volume) + "%", ""};
+            const char* labels[kSettingRows] = {"Window flavor", "Display", "Window size", "Scaling",
+                                                "Screen colors", "Volume", "Back"};
+            for (int i = 0; i < kSettingRows; ++i) {
+                const int y = kPy + 10 + i * 14;
+                if (i == row) ui.cursor(kLabelX - 10, y + 4);
+                ui.text(labels[i], kLabelX, y);
+                std::string v = values[i];
+                if (i == 4)
+                    for (int s = 0; s < 5; ++s) if (st.screen == kScreens[s]) v = kScreenNames[s];
+                if (!v.empty()) ui.choice(v, kRight, y, i == row);
+            }
+            ui.text("Saved when you leave this page.", kLabelX, kPy + 19 * 8 - 22, kDim);
+        } else if (page == Page::Controls) {
+            cv.draw(page_win, kPx, kPy);
+            const int key_x = kPx + 120, pad_x = kPx + 214;
+            ui.text("Keyboard", key_x, kPy + 4, column == 0 ? kInk : kDim);
+            ui.text(pads.available() ? "Gamepad" : "No gamepad", pad_x, kPy + 4, column == 1 ? kInk : kDim);
+            for (int i = 0; i < kControlRows; ++i) {
+                const int y = kPy + 16 + i * 11;
+                if (i == row) ui.cursor(kLabelX - 10, y + 4);
+                if (i == kControlRows - 2) { ui.text("Reset to defaults", kLabelX, y); continue; }
+                if (i == kControlRows - 1) { ui.text("Back", kLabelX, y); continue; }
+                ui.text(m3settings::kButtonLabels[i], kLabelX, y);
+                const bool cap = capturing && i == row;
+                const std::string key = cap && column == 0 ? "Press a key..." : st.keys[i];
+                const std::string pad = cap && column == 1 ? "Press a button..." : pads.label(i);
+                ui.text(key, key_x, y, i == row && column == 0 ? kHot : kInk);
+                ui.text(pads.available() ? pad : "-", pad_x, y, i == row && column == 1 ? kHot : kInk);
+            }
+        } else {  // Mods
             cv.draw(note, (kW - note.w) / 2, 70);
-            const std::string msg = std::string(kItems[cursor_at]) + " is coming soon.";
-            text(cv, rom, msg, (kW - text_width(rom, msg)) / 2, 82);
+            const std::string msg = "Mods are coming soon.";
+            ui.text(msg, (kW - ui.width(msg)) / 2, 82);
         }
 
         SDL_UpdateTexture(tex, nullptr, cv.px.data(), kW * 4);
@@ -230,6 +452,7 @@ Result run(const m3assets::Rom& rom) {
             running = false;
         }
     }
+    if (page != Page::Main && !shot) m3settings::save(dir, st);  // closing the window keeps edits
 
     SDL_DestroyTexture(tex);
     SDL_DestroyRenderer(ren);

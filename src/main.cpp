@@ -13,6 +13,7 @@
 #include "mother3_runtime_hooks.h"
 #include "m3_assets.h"
 #include "m3_launcher.h"
+#include "m3_settings.h"
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -38,8 +39,8 @@ std::string arg_value(const std::vector<std::string>& args, const char* flag) {
 }
 
 // First line of a path file the classic launcher writes (rom.cfg / bios.cfg).
-std::string cfg_path(const char* name) {
-    std::FILE* f = std::fopen(name, "rb");
+std::string cfg_path(const std::string& name) {
+    std::FILE* f = std::fopen(name.c_str(), "rb");
     if (!f) return {};
     char line[1024] = {};
     if (!std::fgets(line, sizeof line, f)) line[0] = 0;
@@ -66,18 +67,26 @@ bool m3_launcher_preboot(std::vector<std::string>& args) {
     for (auto it = args.begin(); it != args.end();)
         if (*it == "--m3-launcher") { requested = true; it = args.erase(it); } else ++it;
     if (!requested) return true;
+    // Config files live next to the executable, where the runtime reads them.
+    std::string dir = args[0];
+    const auto slash = dir.find_last_of("/\\");
+    dir = slash == std::string::npos ? "." : dir.substr(0, slash);
     std::string rom_path = arg_value(args, "--rom");
-    if (rom_path.empty()) rom_path = cfg_path("rom.cfg");
+    if (rom_path.empty()) rom_path = cfg_path(dir + "/rom.cfg");
     m3assets::Rom rom(read_file(rom_path));
     if (!rom.ok()) {
         std::fprintf(stderr, "m3-launcher: no usable English v1.3 ROM at '%s'; using the classic launcher.\n",
                      rom_path.c_str());
         return true;
     }
-    if (m3launcher::run(rom) == m3launcher::Result::Quit) return false;
+    m3settings::Settings settings = m3settings::load(dir);
+    if (m3launcher::run(rom, settings, dir) == m3launcher::Result::Quit) return false;
     if (arg_value(args, "--rom").empty()) args.insert(args.end(), {"--rom", rom_path});
-    const std::string bios = cfg_path("bios.cfg");
+    const std::string bios = cfg_path(dir + "/bios.cfg");
     if (arg_value(args, "--bios").empty() && !bios.empty()) args.insert(args.end(), {"--bios", bios});
+    // Right after argv[0], so flags typed on the command line still win.
+    const auto flags = m3settings::game_args(settings);
+    args.insert(args.begin() + 1, flags.begin(), flags.end());
     args.push_back("--no-launcher");
     return true;
 }
