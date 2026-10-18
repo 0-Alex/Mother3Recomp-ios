@@ -71,13 +71,15 @@ int entry_at(const Field& f, int layer, int tx, int ty) {
     return ((t >> 6) * 64 + (mt & 0x3F)) | ((((mt >> 6) & 1) ^ hf) << 10) | ((((mt >> 7) & 1) ^ vf) << 11) | (sub << 12);
 }
 
-// True when no layer has a visible tile in 16px cell (cx, cy): the void between rooms.
+// True when no layer draws anything in 16px cell (cx, cy): the void between
+// rooms. A cell is blank when each of its 8px parts is hidden or uses VRAM
+// tile 0 (the empty tile); map tile 0 itself can be real ground outdoors.
 bool void_cell(const Field& f, int cx, int cy) {
     if (cx < 0 || cy < 0 || cx >= f.width || cy >= f.height) return true;
     for (int L = 0; L < 3; ++L)
-        if (f.layer[L]) {
-            const int t = bus_read_u16(f.layer[L] + 2u * std::uint32_t(cy * f.width + cx)) & 0x3FF;
-            if (t != 0 && t < 0x300) return false;  // tile 0 is the blank tile
+        for (int q = 0; q < 4; ++q) {
+            const int e = entry_at(f, L, 2 * cx + (q & 1), 2 * cy + (q >> 1));
+            if (e > 0 && (e & 0x3FF) != 0) return false;
         }
     return true;
 }
