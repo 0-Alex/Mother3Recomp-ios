@@ -6,6 +6,10 @@
 #include "mother3_runtime_hooks.h"
 #include "hq_audio_mixer_data.h"
 #include "m3_prompts.h"
+#include "m3_bezel.h"
+#include "m3_settings.h"
+#include <SDL.h>
+#include <string>
 
 namespace {
 
@@ -693,6 +697,15 @@ bool mother3_apply_hq_audio_patch(std::uint8_t* rom, std::size_t rom_size,
 // runtime has hashed it, so the stock image keeps its native code path.
 bool mother3_rom_post_load(std::uint8_t* rom, std::size_t rom_size, const char* source_sha1) {
     m3prompts::attach(rom, rom_size, source_sha1);
+#if defined(_WIN32)
+    // mother3_bezel.dll draws a bezel composed from this ROM; refresh it if the flavor changed.
+    if (char* base = SDL_GetBasePath()) {
+        std::string dir = base;
+        SDL_free(base);
+        if (!dir.empty() && (dir.back() == '\\' || dir.back() == '/')) dir.pop_back();
+        m3bezel::ensure(rom, rom_size, dir, m3settings::load(dir).flavor);
+    }
+#endif
     return mother3_apply_hq_audio_patch(rom, rom_size, source_sha1);
 }
 

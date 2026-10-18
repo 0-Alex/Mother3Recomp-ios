@@ -60,7 +60,7 @@ This project is made possible through the incredible work of developers, transla
 ---
 
 ## 7. Port Integration, Packaging & Visuals
-* **1080p Sunset & Party Bezel Artwork**: Custom full-HD border artwork incorporating MOTHER 3 character sprites (Lucas, Kumatora, Duster, Boney) with the sunflower field and Nowhere Islands sunset.
+* **In-game bezel**: Composed at first launch from the player's own ROM (the Tazmily crossroads map, a menu window in the chosen flavor, and the Lucas, Kumatora, Duster and Boney sprites). No artwork ships with the download.
 * **Interposer Runtime (`mother3_bezel.dll`)**: Custom SDL Dynamic API hook for seamless 1080p bezel composition, 3:2 aspect integer scaling, F10 bezel toggle (Clean Fullscreen mode), and PC hotkeys (`F11` overlay menu, `Esc` exit, `F1`/`F2` save states).
 * **Multi-Resolution Application Icon**: Custom embedded `Mother 3.ico` icon packaging official logo artwork.
 * **Automated One-Click Mod Patcher**: PowerShell/Batch script for instant zero-dependency ROM patching.
