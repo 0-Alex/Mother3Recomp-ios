@@ -11,7 +11,7 @@ Bring your own ROM and game files.
 | Linux x86_64 / Steam Deck | 1.0.7 | [Linux archive](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/download/v1.0.7/Mother3Recomp-v1.0.7-linux-x86_64.tar.gz) |
 | Android (ARM64 and x86_64) | 1.0.7 | [Android APK](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/download/v1.0.7/Mother3Recomp-v1.0.7-android.apk) |
 
-**v1.0.7 updates all platforms.** [What's new](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.7)
+**🎉 v1.0.7 is a BIG UPDATE for all platforms:** MOTHER 3's own launcher, true 16:9 widescreen, button prompts that match your controller, mods, and a rebuilt Android version. [What's new](https://github.com/josiahg2502-glitch/Mother3Recomp/releases/tag/v1.0.7)
 
 ## Features
 
