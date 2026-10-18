@@ -42,6 +42,18 @@ add_executable(Mother3Recomp
     src/mother3_runtime_hooks.cpp
     ${GAME_GENERATED_SOURCES})
 
+# A native game corpus without the recompiled BIOS runs the IRQ/SWI handlers on
+# the interpreter bridge, which breaks audio pacing on every platform. Fail the
+# game target only, so gba_recompile can still be built to generate the BIOS.
+if(EXISTS "${MOTHER3_GENERATED_ROOT}/dispatch_table.cpp" AND
+   NOT EXISTS "${GBARECOMP_ROOT}/src/runtime/generated_bios/bios_recompiled.cpp")
+    add_custom_target(mother3_require_native_bios
+        COMMAND "${CMAKE_COMMAND}" -E echo
+            "Recompiled BIOS missing. Run: gba_recompile --bios <gba_bios.bin> --config gbarecomp/bios/gba_bios.toml --out gbarecomp/src/runtime/generated_bios, then re-run cmake."
+        COMMAND "${CMAKE_COMMAND}" -E false)
+    add_dependencies(Mother3Recomp mother3_require_native_bios)
+endif()
+
 # Embed only the HQ mixer code; the ROM itself is patched in memory after the
 # user's selected language patch has been applied.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mods/High-Quality Sound Mixing/source/m4a_hq_mixer_no_fix.bin" HQ_AUDIO_MIXER_HEX HEX)

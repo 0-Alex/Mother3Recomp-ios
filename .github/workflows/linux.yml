@@ -36,6 +36,13 @@ jobs:
           echo "$CORPUS_SHA256  corpus.tar.gz" | sha256sum -c -
           tar -xzf corpus.tar.gz
           test -f generated/dispatch_table.cpp
+      - name: Recompile private BIOS
+        if: inputs.native_asset_id != ''
+        run: |
+          test -f private-qa/bios.bin
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target gba_recompile -j2
+          ./build/gbarecomp_build/gba_recompile --bios private-qa/bios.bin --config gbarecomp/bios/gba_bios.toml --out gbarecomp/src/runtime/generated_bios
       - name: Build game and regression checks
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
