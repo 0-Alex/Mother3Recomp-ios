@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <iterator>
 
 #include "gba_bus.h"
 #include "gba_ppu.h"
@@ -32,6 +33,7 @@ Field g;  // written by tick(), read by the provider (both on the game thread)
 bool g_battle = false;
 Uint32 g_next = 0;
 int g_misses = 0;  // consecutive failed checks of the field still in use
+int g_margin_left = 0, g_margin_right = 0;  // margin widths of the widened view, set by tick()
 
 bool in_ewram(std::uint32_t a) { return a >= 0x02000000u && a < 0x02040000u; }
 
@@ -148,6 +150,44 @@ bool in_room(int cx, int cy, int hx, int y) {
     return !void_cell(g, wx, wy);
 }
 
+// Pixels of one margin, counted from its outer edge, that fall outside the map or room.
+int void_width(int cx, int cy, int y, bool left) {
+    const int m = left ? g_margin_left : g_margin_right;
+    for (int d = 1; d <= m; ++d)
+        if (!in_room(cx, cy, left ? -d : 239 + d, y)) return m - d + 1;
+    return 0;
+}
+
+// When the camera sits at a map edge (cutscenes often park it there) one margin is
+// void. Blacking the same width on the other side keeps the native picture centred
+// instead of looking shoved sideways; the black shrinks evenly as the camera moves on.
+int black_width(int cx, int cy, int y) {
+    static int s_cx = -100000, s_cy = 0, s_map = -1;
+    static std::uint32_t s_layer = 0;
+    static std::int8_t s_width[160];
+    if (y < 0 || y >= 160) return 0;
+    if (cx != s_cx || cy != s_cy || g.map != s_map || g.layer[1] != s_layer) {
+        s_cx = cx, s_cy = cy, s_map = g.map, s_layer = g.layer[1];
+        std::fill(std::begin(s_width), std::end(s_width), static_cast<std::int8_t>(-1));
+    }
+    if (s_width[y] < 0)
+        s_width[y] = static_cast<std::int8_t>(std::max(void_width(cx, cy, y, true), void_width(cx, cy, y, false)));
+    return s_width[y];
+}
+
+// Window effects (the circle wipe, spotlight reveals) live inside WIN0/WIN1, which
+// the game keeps within the native 240 columns, so the margins are outside every
+// window and show only what WINOUT lets through there. The plain field never
+// enables a window.
+bool hidden_outside_windows(const std::uint8_t* r, int layer_bit) {
+    return (io16(r, 0) & 0x6000) && !(io16(r, 0x4A) & layer_bit);
+}
+
+bool in_black(int cx, int cy, int hx, int y) {
+    const int b = black_width(cx, cy, y);
+    return b && (hx < -g_margin_left + b || hx >= 240 + g_margin_right - b);
+}
+
 // Sprites reaching into a margin from another room (furniture next door, parked
 // actors) are moved off the canvas; sprites in this room show as usual.
 int place_obj(int, std::uint16_t attr0, std::uint16_t attr1, std::uint16_t, int* out_sx) {
@@ -166,7 +206,9 @@ int place_obj(int, std::uint16_t attr0, std::uint16_t attr1, std::uint16_t, int*
     int cx, cy;
     camera(r, 2, &cx, &cy);
     const int px = std::clamp(sx + w / 2, -64, 303), py = std::clamp(sy + h - 1, 0, 159);  // feet
-    if ((px >= 0 && px < 240) || in_room(cx, cy, px, py)) return 0;
+    if ((px >= 0 && px < 240) ||
+        (in_room(cx, cy, px, py) && !in_black(cx, cy, px, py) && !hidden_outside_windows(r, 0x10)))
+        return 0;
     *out_sx = 100000;  // off every canvas
     return 1;
 }
@@ -220,7 +262,12 @@ int provide(int bg, int hx, int y, std::uint16_t* out) {
     const std::uint8_t* r = io();
     if (!r) return gba::kWsTilemapUnavailable;
     if (g_battle) return provide_battle(r, bg, y);
-    if (!g.ok) return gba::kWsTilemapUnavailable;
+    if (!g.ok || hidden_outside_windows(r, 1 << bg)) return gba::kWsTilemapUnavailable;
+    {
+        int cx, cy;
+        camera(r, 2, &cx, &cy);
+        if (in_black(cx, cy, hx, y)) return gba::kWsTilemapUnavailable;
+    }
     if (bg == 0) return extend_solid_edge(r, hx, y, out);
     if (bg > 3 || !g.bg_ok[bg]) return gba::kWsTilemapUnavailable;
     int cx, cy;
@@ -247,6 +294,8 @@ void tick() {
     gba::GbaPpu* ppu = gbarecomp::active_ppu();
     if (!ppu || ppu->render_width() <= 240) return;
     if (gba::g_ws_tilemap_provider != &provide) install();
+    g_margin_left = static_cast<int>(ppu->view_extra_left());
+    g_margin_right = static_cast<int>(ppu->render_width()) - 240 - g_margin_left;
     const Uint32 now = SDL_GetTicks();
     if (now < g_next) return;
     g_next = now + 50;
