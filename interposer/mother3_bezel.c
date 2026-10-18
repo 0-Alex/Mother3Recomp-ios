@@ -14,17 +14,19 @@ typedef struct {
 #undef SDL_DYNAPI_PROC
 } SdlApi;
 static SdlApi api;
-static SDL_Texture *game_texture, *bezel_texture;
+static SDL_Texture *game_texture, *game_texture2x, *bezel_texture;  /* 2x: smooth-motion in-between frames */
 static SDL_Renderer *bezel_renderer;
 static int bezel_enabled = 1;
 
 static SDL_Texture *SDLCALL create_texture(SDL_Renderer *r, Uint32 f, int a, int w, int h) {
     SDL_Texture *t = api.SDL_CreateTexture(r, f, a, w, h);
     if (a == SDL_TEXTUREACCESS_STREAMING && w == 240 && h == 160) game_texture = t;
+    if (a == SDL_TEXTUREACCESS_STREAMING && w == 480 && h == 320) game_texture2x = t;
     return t;
 }
 static void SDLCALL destroy_texture(SDL_Texture *t) {
     if (t == game_texture) game_texture = NULL;
+    if (t == game_texture2x) game_texture2x = NULL;
     if (t == bezel_texture) bezel_texture = NULL;
     api.SDL_DestroyTexture(t);
 }
@@ -33,7 +35,7 @@ static void SDLCALL destroy_renderer(SDL_Renderer *r) {
         bezel_texture = NULL;
         bezel_renderer = NULL;
     }
-    game_texture = NULL;
+    game_texture = game_texture2x = NULL;
     api.SDL_DestroyRenderer(r);
 }
 static int SDLCALL poll_event(SDL_Event *e) {
@@ -77,7 +79,7 @@ static int load_bezel(SDL_Renderer *r) {
 }
 static int SDLCALL render_copy(SDL_Renderer *r, SDL_Texture *t,
                               const SDL_Rect *src, const SDL_Rect *dst) {
-    if (!bezel_enabled || t != game_texture ||
+    if (!bezel_enabled || (t != game_texture && t != game_texture2x) ||
         (!bezel_texture && !load_bezel(r))) return api.SDL_RenderCopy(r, t, src, dst);
     int w, h, lw, lh;
     if (api.SDL_GetRendererOutputSize(r, &w, &h) != 0 || w <= 0 || h <= 0)

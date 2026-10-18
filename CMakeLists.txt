@@ -47,6 +47,7 @@ set(MOTHER3_SOURCES
     src/m3_launcher.cpp
     src/m3_settings.cpp
     src/m3_setup.cpp
+    src/m3_smooth.cpp
     src/m3_prompts.cpp
     src/m3_bezel.cpp
     src/m3_mods.cpp

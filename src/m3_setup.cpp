@@ -45,6 +45,14 @@ std::string first_line(const std::string& path) {
     return s;
 }
 
+// rom.cfg / bios.cfg may hold paths relative to their own folder (the classic
+// launcher's convention), not to wherever the game was started from.
+std::string cfg_path(const std::string& dir, const char* name) {
+    const std::string value = first_line(dir + "/" + name);
+    if (value.empty() || fs::path(value).is_absolute()) return value;
+    return (fs::path(dir) / value).lexically_normal().string();
+}
+
 void write_line(const std::string& path, const std::string& value) {
     if (std::FILE* f = std::fopen(path.c_str(), "wb")) {
         std::fprintf(f, "%s\n", value.c_str());
@@ -117,8 +125,8 @@ bool ask(const char* message) { return tinyfd_messageBox("MOTHER 3", message, "y
 
 bool load(const std::string& dir, Files* out) {
     Files f;
-    f.bios_path = first_line(dir + "/bios.cfg");
-    f.rom_path = first_line(dir + "/rom.cfg");
+    f.bios_path = cfg_path(dir, "bios.cfg");
+    f.rom_path = cfg_path(dir, "rom.cfg");
     if (read(f.bios_path).size() != kBiosSize) return false;
     f.rom = read(f.rom_path);
     if (f.rom.size() != kRomSize) return false;

@@ -38,7 +38,10 @@ MOTHER 3's own launcher opens: the party walks around outside Tazmily while you 
 **Controls** or **Mods**. Everything it shows is drawn from your ROM; no game art ships with the download.
 
 - **Settings:** window flavor (the game's Plain to Melon), display mode, window size, scaling, screen colors,
-  volume, **Button prompts**, and **Change game files** to pick a different ROM or BIOS.
+  volume, **Button prompts**, **Frame rate**, and **Change game files** to pick a different ROM or BIOS.
+- **Frame rate 120 (smooth):** on a 120 Hz (or faster) screen, an in-between frame is drawn between every two of
+  the game's frames, so scrolling and walking move in half steps. The game itself still runs at its normal speed.
+  On a 60 Hz screen it has no effect, and the launcher says so.
 - **Other translations** (such as Spanish) start the game directly, because the launcher draws its text from the
   English ROM. Their settings still come from the last time you used the launcher.
 - **Controls:** pick a GBA button, then press the new key or controller button; whichever you press is the one

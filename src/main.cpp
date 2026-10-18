@@ -15,6 +15,7 @@
 #include "m3_launcher.h"
 #include "m3_settings.h"
 #include "m3_setup.h"
+#include "m3_smooth.h"
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -87,7 +88,11 @@ bool m3_launcher_preboot(std::vector<std::string>& args) {
         files.rom_path = rom;
         files.rom = read_file(rom);
         files.bios_path = arg_value(args, "--bios");
-        if (files.bios_path.empty()) files.bios_path = cfg_path(dir + "/bios.cfg");
+        if (files.bios_path.empty()) {
+            files.bios_path = cfg_path(dir + "/bios.cfg");
+            if (!files.bios_path.empty() && files.bios_path[0] != '/' && files.bios_path.find(':') == std::string::npos)
+                files.bios_path = dir + "/" + files.bios_path;  // relative to the game folder, like rom.cfg
+        }
         files.english = m3assets::Rom(files.rom).ok();
     } else if (!m3setup::load(dir, &files) && !m3setup::choose(dir, &files, false)) {
         return false;  // the player cancelled setup
@@ -218,6 +223,13 @@ int mother3_main(int argc, char** argv) {
     opts.assist_tools_enabled_by_default = false;
 #else
     if (!m3_launcher_preboot(args)) return 0;
+    {
+        std::string dir = args[0];
+        const auto slash = dir.find_last_of("/\\");
+        dir = slash == std::string::npos ? "." : dir.substr(0, slash);
+        const char* force = std::getenv("M3_SMOOTH");
+        m3smooth::enable(force ? *force == '1' : m3settings::load(dir).smooth);
+    }
 #if defined(GBAGAME_RECOMP_UI)
     if (game_launcher_preboot(args, opts)) return 0;
 #endif
