@@ -153,6 +153,18 @@ int Rom::sprite_frame_count(int sprite) const {
     return static_cast<int>(frames_of(b_, o, sz).size());
 }
 
+// The info entry's animation table (offset at +4): a count, then records of
+// u16 steps + steps x (frame, duration). Records 8..15 walk in each direction.
+int Rom::walk_frame(int sprite, int dir, int step) const {
+    std::size_t o, sz;
+    if (!ok_ || !entry(kSpriteInfo, sprite, &o, &sz) || sz < 8) return dir;
+    std::size_t a = o + u32(o + 4) + 4;
+    for (int rec = 0; rec < 8 + dir; ++rec) a += 2 + 2 * std::size_t(u16(a));
+    const int steps = u16(a);
+    if (steps == 0 || a + 2 + 2 * std::size_t(steps) > o + sz) return dir;
+    return b_[a + 2 + 2 * std::size_t(step % steps)];
+}
+
 Image Rom::sprite_frame(int sprite, int frame) const {
     Image img{64, 64, std::vector<std::uint32_t>(64 * 64, 0)};
     std::size_t io, isz, go, gsz;

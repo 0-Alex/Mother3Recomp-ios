@@ -22,6 +22,8 @@ public:
     int sprite_frame_count(int sprite) const;
     // 64x64 canvas with the sprite's feet at (32, 48).
     Image sprite_frame(int sprite, int frame) const;
+    // Frame for `step` of the sprite's own walk cycle facing `dir` (0..7, clockwise from down).
+    int walk_frame(int sprite, int dir, int step) const;
     // 16x16 glyph for printable ASCII; *advance gets the pixel width to step.
     Image glyph(char c, int* advance) const;
     // Window of w x h tiles (8px each) in one of the menu flavor palettes.

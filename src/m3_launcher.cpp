@@ -25,10 +25,18 @@ constexpr std::uint32_t kInk = 0xFF383040u, kDim = 0xFF8A7F86u, kHot = 0xFFC0304
 // Scene: the crossroads by the bell tower north of Tazmily (map 36, 64 tiles wide).
 constexpr int kSceneMap = 36, kSceneWidthTiles = 64;
 struct Point { int x, y; };
-// Feet positions along the dirt paths; the party loops through them forever.
-constexpr Point kRoute[] = {{512, 384}, {512, 56}, {512, 384}, {992, 384},
-                            {512, 384}, {512, 736}, {512, 384}, {32, 384}};
-constexpr int kRouteLen = sizeof kRoute / sizeof kRoute[0];
+// The camera holds on the crossroads (feet at 512,384 sit mid-screen between the bars).
+constexpr Point kCamera = {352, 286};
+// Walks through the crossroads along the dirt roads: each pass starts just out of view
+// and ends once the last member has left it, so the party never turns back on itself.
+struct Pass { Point pts[3]; int count; };
+constexpr Pass kPasses[] = {
+    {{{310, 384}, {774, 384}}, 2},              // west to east
+    {{{512, 290}, {512, 554}}, 2},              // north to south
+    {{{714, 384}, {512, 384}, {512, 230}}, 3},  // east, turning north
+    {{{512, 494}, {512, 384}, {250, 384}}, 3},  // south, turning west
+};
+constexpr int kPassCount = sizeof kPasses / sizeof kPasses[0];
 
 struct Member { const char* name; int sprite; };
 constexpr Member kParty[] = {{"Lucas", 4}, {"Kumatora", 13}, {"Duster", 15}, {"Boney", 10}};
@@ -84,12 +92,13 @@ struct Ui {
     void text_right(const std::string& s, int right, int y, std::uint32_t color = kInk) {
         text(s, right - width(s), y, color);
     }
-    // Right-pointing triangle; the ROM font has no usable '<' / '>'.
+    // Right-pointing triangle; the ROM font has no usable '<' / '>'. Callers pass the
+    // text's y + 4; the 7px arrow is lifted 3px so it centres on the 8px capitals.
     void cursor(int x, int y, std::uint32_t color = kInk) {
-        for (int k = 0; k < 4; ++k) cv.fill(x + k, y + k, 1, 7 - 2 * k, color);
+        for (int k = 0; k < 4; ++k) cv.fill(x + k, y - 3 + k, 1, 7 - 2 * k, color);
     }
     void cursor_left(int x, int y, std::uint32_t color) {
-        for (int k = 0; k < 4; ++k) cv.fill(x + 3 - k, y + k, 1, 7 - 2 * k, color);
+        for (int k = 0; k < 4; ++k) cv.fill(x + 3 - k, y - 3 + k, 1, 7 - 2 * k, color);
     }
     // "< value >" right-aligned at `right`, used for adjustable settings.
     void choice(const std::string& v, int right, int y, bool active) {
@@ -147,16 +156,21 @@ struct Stick {
 
 struct Step { Point at; Dir dir; };
 
-// Moves the leader 1px per frame toward the next route point.
+// Moves the leader 1px per frame toward the next point of the current pass.
 struct Walker {
-    Point at = kRoute[kRouteLen - 1];
-    int target = 0;
+    int pass = 0, target = 1;
+    Point at = kPasses[0].pts[0];
     Dir dir = kRight;
     std::deque<Step> history;
     void tick() {
-        const Point t = kRoute[target];
-        if (at.x == t.x && at.y == t.y) target = (target + 1) % kRouteLen;
-        const Point n = kRoute[target];
+        const Point t = kPasses[pass].pts[target];
+        if (at.x == t.x && at.y == t.y && ++target == kPasses[pass].count) {
+            pass = (pass + 1) % kPassCount;  // everyone is out of view: start the next road
+            target = 1;
+            at = kPasses[pass].pts[0];
+            history.clear();
+        }
+        const Point n = kPasses[pass].pts[target];
         if (n.x != at.x) { dir = n.x > at.x ? kRight : kLeft; at.x += n.x > at.x ? 1 : -1; }
         else if (n.y != at.y) { dir = n.y > at.y ? kDown : kUp; at.y += n.y > at.y ? 1 : -1; }
         history.push_front({at, dir});
@@ -284,6 +298,7 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
     // M3_LAUNCHER_PADS="frame:button,..." (SDL button numbers) presses controller buttons.
     const char* shot = std::getenv("M3_LAUNCHER_SHOT");
     const char* pad_script = std::getenv("M3_LAUNCHER_PADS");
+    const int shot_frame = std::getenv("M3_LAUNCHER_SHOT_FRAME") ? std::atoi(std::getenv("M3_LAUNCHER_SHOT_FRAME")) : 150;
     Page page = Page::Main;
     int cursor_at = 0;
     if (const char* p = std::getenv("M3_LAUNCHER_PAGE")) {
@@ -435,9 +450,8 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
         if (built_flavor != st.flavor) build_windows();
 
         walker.tick();
-        // Keep the leader centred in the space between the menu bars.
-        const int cam_x = std::clamp(walker.at.x - kW / 2, 0, scene.w - kW);
-        const int cam_y = std::clamp(walker.at.y - 8 - kH / 2, 0, scene.h - kH);
+        const int cam_x = std::clamp(kCamera.x, 0, scene.w - kW);
+        const int cam_y = std::clamp(kCamera.y, 0, scene.h - kH);
         Canvas& cv = ui.cv;
         cv.blit_view(scene, cam_x, cam_y);
 
@@ -447,10 +461,11 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
         std::stable_sort(order.begin(), order.end(), [&](int a, int b) {
             return walker.member(a).at.y < walker.member(b).at.y;
         });
-        const int walk_phase = (frame / 8) % 4;  // stand, step A, stand, step B
+        // One shared step clock keeps the party in step; each sprite's ROM walk cycle gives its frames.
+        const int walk_step = frame / 11;
         for (int k : order) {
             const Step s = walker.member(k);
-            const int f = s.dir + (walk_phase == 1 ? 8 : walk_phase == 3 ? 16 : 0);
+            const int f = rom.walk_frame(kParty[k].sprite, s.dir, walk_step);
             cv.draw(rom.sprite_frame(kParty[k].sprite, f), s.at.x - cam_x - 32, s.at.y - cam_y - 48);
         }
 
@@ -553,7 +568,7 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             q = *end == ',' ? end + 1 : nullptr;
         }
 
-        if (shot && frame == 150) {
+        if (shot && frame == shot_frame) {
             if (SDL_Surface* s = SDL_CreateRGBSurfaceWithFormatFrom(cv.px.data(), kW, kH, 32, kW * 4,
                                                                     SDL_PIXELFORMAT_ARGB8888)) {
                 SDL_SaveBMP(s, shot);
