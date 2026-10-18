@@ -29,6 +29,7 @@ struct Field {
     int map = -1;
 };
 Field g;  // written by tick(), read by the provider (both on the game thread)
+bool g_battle = false;
 Uint32 g_next = 0;
 
 bool in_ewram(std::uint32_t a) { return a >= 0x02000000u && a < 0x02040000u; }
@@ -191,10 +192,34 @@ int extend_solid_edge(const std::uint8_t* r, int hx, int y, std::uint16_t* out) 
     return gba::kWsTilemapReplace;
 }
 
+// Battles: BG2/BG3 are tiling background patterns (with per-line distortion),
+// so the 256px ring's wrap is their true continuation; BG0/BG1 are the text
+// box and HUD and never extend. WIN0 hides the background behind the text and
+// HUD rows natively, so margins follow the same rows.
+bool battle_layout(const std::uint8_t* r) {
+    const int dispcnt = io16(r, 0);
+    if ((dispcnt & 7) != 0 || (dispcnt & 0x0C00) != 0x0C00) return false;
+    return ((io16(r, 0x0C) >> 8) & 31) == 29 && ((io16(r, 0x0E) >> 8) & 31) == 28 &&
+           (io16(r, 0x0C) >> 14) == 0 && (io16(r, 0x0E) >> 14) == 0;
+}
+
+int provide_battle(const std::uint8_t* r, int bg, int y) {
+    if (bg != 2 && bg != 3) return gba::kWsTilemapUnavailable;
+    const int dispcnt = io16(r, 0);
+    if (dispcnt & 0x2000) {  // WIN0 spans the native width; extend it across the margins
+        const int v = io16(r, 0x44), top = v >> 8, bottom = v & 0xFF;
+        const bool inside = top <= bottom ? (y >= top && y < bottom) : (y >= top || y < bottom);
+        const int mask = inside ? io16(r, 0x48) : io16(r, 0x4A);
+        if (!(mask & (1 << bg))) return gba::kWsTilemapUnavailable;
+    }
+    return gba::kWsTilemapKeepWrapped;
+}
+
 int provide(int bg, int hx, int y, std::uint16_t* out) {
-    if (!g.ok) return gba::kWsTilemapUnavailable;
     const std::uint8_t* r = io();
     if (!r) return gba::kWsTilemapUnavailable;
+    if (g_battle) return provide_battle(r, bg, y);
+    if (!g.ok) return gba::kWsTilemapUnavailable;
     if (bg == 0) return extend_solid_edge(r, hx, y, out);
     if (bg > 3 || !g.bg_ok[bg]) return gba::kWsTilemapUnavailable;
     int cx, cy;
@@ -260,10 +285,11 @@ void tick() {
     }
     f.ok = ok;
     if (!ok) f.width = f.height = 0;
+    g_battle = !ok && battle_layout(r);
     if (ok != g.ok || f.map != g.map || f.width != g.width)
         SDL_Log("m3-widescreen: map %d field=%d sane=%d width=%d", f.map, ok, sane, f.width);
     g = f;
-    gba::g_ws_pillarbox = ok ? 0 : 1;
+    gba::g_ws_pillarbox = ok || g_battle ? 0 : 1;
 }
 
 }  // namespace m3widescreen

@@ -45,9 +45,9 @@ your ROM; no game art ships with the download. Run with `--classic-launcher` to 
   in Settings if you prefer.
 - **Mods:** put `.ips`, `.bps` or `.ups` patches in the `mods` folder (the page has an **Open mods folder**
   button) and tick them. Mods that change game code are marked *slower*: they run in compatibility mode.
-- **Widescreen:** Settings > Widescreen shows 16:9 in towns, fields and rooms by drawing the real map into the
-  sides. Menus, battles and anything else stay 4:3 with black sides. Some map edges show black blocks where the
-  map has no art (the original camera never shows them). The bezel is not used in widescreen.
+- **Widescreen:** Settings > Widescreen shows 16:9 in towns, fields, rooms and battles: the field draws the real
+  map into the sides and battle backgrounds continue their pattern. Menus and anything else stay 4:3 with black
+  sides, and the true edge of a map is black. The bezel is not used in widescreen.
 - **Bezel (Windows):** built from your ROM on first launch in your window flavor; F10 hides it.
 
 ## Controls
