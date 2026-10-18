@@ -21,6 +21,7 @@ struct Settings {
     int volume = 100;            // 0..100
     bool widescreen = false;     // field widescreen at 16:9 (284px)
     int prompt_style = 0;        // in-game buttons: 0 auto, 1 Xbox, 2 PlayStation, 3 Nintendo, 4 keyboard
+    bool smooth = false;         // 120 fps smooth motion on displays of 100 Hz or more
     std::array<std::string, kButtonCount> keys;  // SDL scancode names
 };
 

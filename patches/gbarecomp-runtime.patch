@@ -9913,3 +9913,478 @@ index 0000000..886291c
 +    std::unique_ptr<Impl> impl_;
 +};
 +}
+diff --git a/src/gba/gba_ppu.h b/src/gba/gba_ppu.h
+--- a/src/gba/gba_ppu.h
++++ b/src/gba/gba_ppu.h
+@@ -187,6 +187,21 @@
+     const uint8_t* latched_framebuffer() const { return latched_fb_.data(); }
+     bool has_latched_framebuffer() const { return has_latched_fb_; }
+ 
++    // Host-only motion record for present-time frame interpolation, kept while
++    // g_ppu_record_motion is set (never serialized; empty otherwise). Each tag
++    // is the compositor key of the pixel's front layer: OBJ = priority*256 +
++    // OAM index, regular BG = priority*256 + 128 + layer, 0xFFFF = backdrop,
++    // 0xFFFE = anything else. Lines hold each visible line's scroll state.
++    struct MotionLine {
++        uint16_t dispcnt = 0;
++        uint16_t bgcnt[4] = {};
++        uint16_t hofs[4] = {};
++        uint16_t vofs[4] = {};
++    };
++    const uint16_t* latched_tags() const { return latched_tags_.empty() ? nullptr : latched_tags_.data(); }
++    const MotionLine* latched_motion_lines() const { return latched_lines_.empty() ? nullptr : latched_lines_.data(); }
++    const uint8_t* latched_oam() const { return latched_oam_.data(); }
++
+ private:
+     friend class SimulationStateCodec;
+     PresentationObserver* presentation_ = nullptr; // borrowed; not serialized
+@@ -210,6 +225,9 @@
+     std::vector<uint8_t> work_fb_ = std::vector<uint8_t>(kMaxFramebufferBytes);
+     std::vector<uint8_t> latched_fb_ = std::vector<uint8_t>(kMaxFramebufferBytes);
+     bool has_latched_fb_ = false;
++    std::vector<uint16_t> work_tags_, latched_tags_;      // allocated on first recorded line
++    std::vector<MotionLine> work_lines_, latched_lines_;
++    std::array<uint8_t, 1024> work_oam_{}, latched_oam_{};
+ 
+     struct AffineLineState {
+         int32_t x = 0;
+@@ -289,6 +307,15 @@
+ // keeps the established expanded-viewport OBJ test.
+ extern "C" int g_ws_obj_native_clip;
+ 
++// Present-time frame interpolation (host-only, default off). While
++// g_ppu_record_motion is nonzero the PPU keeps the motion record above. A
++// runtime with g_present_interpolator set calls it with each finished frame
++// before presenting; returning nonzero means out2x now holds a (2w x 2h RGB888)
++// frame for half a frame period earlier, which is presented first.
++extern "C" int g_ppu_record_motion;
++extern "C" int (*g_present_interpolator)(const GbaPpu* ppu, const uint8_t* rgb,
++                                         uint32_t w, uint32_t h, uint8_t* out2x);
++
+ // Read-only, game-authored OBJ coverage for expanded margins. RGB555 bit 15
+ // marks a transparent pixel. Priority uses the hardware 0..3 BG/OBJ order.
+ // The PPU never consumes this layer inside the native 240x160 viewport.
+diff --git a/src/gba/gba_ppu.cpp b/src/gba/gba_ppu.cpp
+--- a/src/gba/gba_ppu.cpp
++++ b/src/gba/gba_ppu.cpp
+@@ -51,9 +51,23 @@
+ // rest.
+ extern "C" int g_ws_obj_native_clip = 0;
+ extern "C" const WsMarginObjPixel* (*g_ws_obj_margin_provider)(int, int*, int*) = nullptr;
++extern "C" int g_ppu_record_motion = 0;
++extern "C" int (*g_present_interpolator)(const GbaPpu*, const uint8_t*, uint32_t, uint32_t,
++                                         uint8_t*) = nullptr;
+ 
+ namespace {
+ 
++// Tag row for the scanline being composited into the work framebuffer (see
++// GbaPpu::MotionLine); null for every other render (screenshots, re-latches).
++std::uint16_t* g_tag_row = nullptr;
++inline std::uint16_t motion_tag(int key, std::uint8_t layer) {
++    if (layer == 5) return 0xFFFFu;
++    return static_cast<std::uint16_t>(key < 0 || key > 0xFFFE ? 0xFFFE : key);
++}
++inline void fill_tags(std::uint32_t width) {
++    if (g_tag_row) std::fill(g_tag_row, g_tag_row + width, static_cast<std::uint16_t>(0xFFFFu));
++}
++
+ // These pointers have no C linkage and are deliberately not declared by the
+ // public PPU header. Only the engine-internal seam below can publish them.
+ const std::uint16_t* g_foreign_background = nullptr;
+@@ -730,6 +744,7 @@
+     uint8_t* row = rgb + y * kScreenWidth * 3;
+     if (dispcnt & 0x0080u) {
+         std::memset(row, 0xFF, kScreenWidth * 3);
++        fill_tags(kScreenWidth);
+         return;
+     }
+ 
+@@ -1360,6 +1375,7 @@
+     if (bldy > 16u) bldy = 16u;
+     for (uint32_t x = 0; x < kScreenWidth; ++x) {
+         uint8_t* dst = row + x * 3;
++        if (g_tag_row) g_tag_row[x] = motion_tag(top[x].key, top[x].layer);
+         // Alpha blend top (1st target) with the layer below (2nd target). Per
+         // GBATEK this occurs when effect==1 OR top is a semi-transparent OBJ
+         // (mode 1 forces alpha regardless of BLDCNT). NOT gated on EVA!=0:
+@@ -1418,9 +1434,9 @@
+     const bool native_row = y >= 0 && y < static_cast<int>(kVanH);
+     uint8_t* row = rgb + (y + static_cast<int>(oy)) * out_w * 3;
+     if (!native_row && (!g_ws_authored_margin_layers || !g_ws_tilemap_provider || g_ws_pillarbox)) {
+-        std::memset(row, 0, out_w * 3); return;
++        std::memset(row, 0, out_w * 3); fill_tags(out_w); return;
+     }
+-    if (dispcnt & 0x0080u) { std::memset(row, 0xFF, out_w * 3); return; }
++    if (dispcnt & 0x0080u) { std::memset(row, 0xFF, out_w * 3); fill_tags(out_w); return; }
+ 
+     struct PixelCandidate {
+ #if !defined(GBARECOMP_SCANLINE_HLE)
+@@ -2102,6 +2118,7 @@
+     }
+     for (uint32_t x = 0; x < out_w; ++x) {
+         uint8_t* dst = row + x * 3;
++        if (g_tag_row) g_tag_row[x] = motion_tag(top[x].key, top[x].layer);
+         // OBJ-only presentations (notably the real GBA BIOS logo) author the
+         // whole backdrop through palette entry 0. There is no regular-BG
+         // alias to protect in the margins, so preserve that authentic color
+@@ -2467,10 +2484,29 @@
+     }
+ 
+     if (!rasterization_enabled_) return;
++    const bool record = g_ppu_record_motion != 0 && y < kScreenHeight;
++    if (record) {
++        if (work_tags_.empty()) {
++            work_tags_.assign(static_cast<std::size_t>(kMaxRenderWidth) * kMaxRenderHeight, 0xFFFFu);
++            latched_tags_ = work_tags_;
++            work_lines_.assign(kScreenHeight, MotionLine{});
++            latched_lines_ = work_lines_;
++        }
++        MotionLine& line = work_lines_[y];
++        line.dispcnt = dispcnt;
++        for (unsigned bg = 0; bg < 4; ++bg) {
++            line.bgcnt[bg] = static_cast<uint16_t>(io[0x08 + 2 * bg] | (io[0x09 + 2 * bg] << 8));
++            line.hofs[bg] = static_cast<uint16_t>((io[0x10 + 4 * bg] | (io[0x11 + 4 * bg] << 8)) & 0x1FF);
++            line.vofs[bg] = static_cast<uint16_t>((io[0x12 + 4 * bg] | (io[0x13 + 4 * bg] << 8)) & 0x1FF);
++        }
++        if (y == kScreenHeight - 1) std::memcpy(work_oam_.data(), oam, work_oam_.size());
++    }
+     if (!view_expanded()) {
++        if (record) g_tag_row = work_tags_.data() + static_cast<std::size_t>(y) * kScreenWidth;
+         render_scanline_internal(work_fb_.data(), y, dispcnt,
+                                  affine_io.data(), vram, oam, pal,
+                                  kScreenWidth, kScreenHeight);
++        g_tag_row = nullptr;
+         return;
+     }
+     // Host-authored extra rows use this frame's published state once, at
+@@ -2482,8 +2518,11 @@
+                                  render_width(), extra_left_, extra_top_);
+         }
+     }
++    if (record)
++        g_tag_row = work_tags_.data() + static_cast<std::size_t>(y + extra_top_) * render_width();
+     render_scanline_wide(work_fb_.data(), y, dispcnt, affine_io.data(),
+                          vram, oam, pal, render_width(), extra_left_, extra_top_);
++    g_tag_row = nullptr;
+ }
+ 
+ void GbaPpu::note_affine_reference_write(unsigned bg, bool y_axis) {
+@@ -2513,6 +2552,12 @@
+ void GbaPpu::mark_framebuffer_latched() {
+     if (rasterization_enabled_)
+         std::memcpy(latched_fb_.data(), work_fb_.data(), render_bytes());
++    if (rasterization_enabled_ && !work_tags_.empty()) {
++        std::copy_n(work_tags_.data(), static_cast<std::size_t>(render_width()) * render_height(),
++                    latched_tags_.data());
++        latched_lines_ = work_lines_;
++        latched_oam_ = work_oam_;
++    }
+     has_latched_fb_ = true;
+     if (presentation_) presentation_->frame_ready();
+ }
+diff --git a/src/runtime/host_window.h b/src/runtime/host_window.h
+--- a/src/runtime/host_window.h
++++ b/src/runtime/host_window.h
+@@ -153,6 +153,9 @@
+     // Upload one base_w x base_h RGB888 frame (the dimensions passed to open())
+     // and present.
+     void present(const uint8_t* rgb888);
++    // Present a frame at `factor` (1 or 2) times the base surface size into the
++    // same destination; interpolated frames use 2 for half-pixel motion.
++    void present_scaled(const uint8_t* rgb888, int factor);
+ 
+     // Push `count` int16_t mono samples into the audio output queue. The SDL
+     // backend configures its resampler for a 65.536 kHz source; the real
+diff --git a/src/runtime/host_window.cpp b/src/runtime/host_window.cpp
+--- a/src/runtime/host_window.cpp
++++ b/src/runtime/host_window.cpp
+@@ -369,6 +369,7 @@
+     SDL_Renderer* renderer = nullptr;
+     SDL_Texture*  texture  = nullptr;
+     SDL_Texture*  sharp_texture = nullptr;
++    SDL_Texture*  texture2x = nullptr;  // interpolated frames at twice the base size
+     int           sharp_texture_w = 0;
+     int           sharp_texture_h = 0;
+     bool          sharp_target_failed = false;
+@@ -448,6 +449,7 @@
+     // grading), so default behavior is byte-identical to upstream.
+     std::unique_ptr<runtime::ColorLut> color_lut;
+     std::vector<uint8_t> graded_fb;  // scratch RGB888 (base_w*base_h*3)
++    std::vector<uint8_t> graded_fb2x;  // the same for texture2x
+ #if defined(GBARECOMP_RUNTIME_UI)
+     RecompRuntimeUi* runtime_ui = nullptr;
+     ImGuiContext* runtime_imgui_context = nullptr;
+@@ -2168,6 +2170,7 @@
+     runtime_imgui_shutdown(b);
+ #endif
+     destroy_sharp_texture(b);
++    if (b->texture2x) SDL_DestroyTexture(b->texture2x);
+     if (b->texture)   SDL_DestroyTexture(b->texture);
+     if (b->renderer)  SDL_DestroyRenderer(b->renderer);
+     if (b->window)    SDL_DestroyWindow(b->window);
+@@ -2199,6 +2202,7 @@
+ #endif
+     SDL_DestroyTexture(b->texture);
+     destroy_sharp_texture(b);
++    if (b->texture2x) { SDL_DestroyTexture(b->texture2x); b->texture2x = nullptr; }
+     b->texture = replacement;
+     b->base_w = base_w;
+     b->base_h = base_h;
+@@ -2238,17 +2242,43 @@
+            *width > 0 && *height > 0;
+ }
+ 
+-void HostWindow::present(const uint8_t* rgb888) {
+-    if (!open_ || !impl_ || !rgb888) return;
++namespace {
++// Interpolated frames are uploaded at twice the base size so half-pixel
++// motion survives; the destination rectangle and filtering stay the same.
++SDL_Texture* ensure_texture2x(Backend* b) {
++    int w = 0, h = 0;
++    if (b->texture2x && SDL_QueryTexture(b->texture2x, nullptr, nullptr, &w, &h) == 0 &&
++        w == b->base_w * 2 && h == b->base_h * 2)
++        return b->texture2x;
++    if (b->texture2x) SDL_DestroyTexture(b->texture2x);
++    b->texture2x = SDL_CreateTexture(b->renderer, SDL_PIXELFORMAT_RGB24,
++                                     SDL_TEXTUREACCESS_STREAMING, b->base_w * 2, b->base_h * 2);
++#if SDL_VERSION_ATLEAST(2, 0, 12)
++    if (b->texture2x)
++        SDL_SetTextureScaleMode(b->texture2x,
++                                b->linear_filter ? SDL_ScaleModeLinear : SDL_ScaleModeNearest);
++#endif
++    return b->texture2x;
++}
++}  // namespace
++
++void HostWindow::present(const uint8_t* rgb888) { present_scaled(rgb888, 1); }
++
++void HostWindow::present_scaled(const uint8_t* rgb888, int factor) {
++    if (!open_ || !impl_ || !rgb888 || (factor != 1 && factor != 2)) return;
+     auto* b = static_cast<Backend*>(impl_);
++    SDL_Texture* frame_texture = factor == 2 ? ensure_texture2x(b) : b->texture;
++    if (!frame_texture) return;
++    const int frame_w = b->base_w * factor, frame_h = b->base_h * factor;
+     // Present-time color grading (opt-in). Raw is passthrough: the raw
+     // PPU frame is uploaded untouched, so verify/frame-hash are unaffected.
+-    if (b->color_lut && !b->color_lut->is_passthrough() &&
+-        b->graded_fb.size() == static_cast<std::size_t>(b->base_w) * b->base_h * 3u) {
+-        b->color_lut->map_rgb888(rgb888, b->graded_fb.data(), b->base_w, b->base_h);
+-        rgb888 = b->graded_fb.data();
++    if (b->color_lut && !b->color_lut->is_passthrough()) {
++        std::vector<uint8_t>& graded = factor == 2 ? b->graded_fb2x : b->graded_fb;
++        graded.resize(static_cast<std::size_t>(frame_w) * frame_h * 3u);
++        b->color_lut->map_rgb888(rgb888, graded.data(), frame_w, frame_h);
++        rgb888 = graded.data();
+     }
+-    SDL_UpdateTexture(b->texture, nullptr, rgb888, b->base_w * 3);
++    SDL_UpdateTexture(frame_texture, nullptr, rgb888, frame_w * 3);
+     SDL_SetRenderDrawColor(b->renderer, 7, 11, 20, 255);
+     SDL_RenderClear(b->renderer);
+ #if defined(__ANDROID__)
+@@ -2317,10 +2347,10 @@
+     if (touch_input_enabled(b)) publish_touch_presentation(b);
+ #if defined(__ANDROID__)
+     const SDL_Rect destination{layout.x, layout.y, layout.width, layout.height};
+-    SDL_RenderCopy(b->renderer, b->texture, nullptr, &destination);
++    SDL_RenderCopy(b->renderer, frame_texture, nullptr, &destination);
+ #else
+     if (!b->expanded_view && !b->resize_driven_view) {
+-        SDL_RenderCopy(b->renderer, b->texture, nullptr, nullptr);
++        SDL_RenderCopy(b->renderer, frame_texture, nullptr, nullptr);
+     } else {
+         if (layout.width > 0 && layout.height > 0) {
+             const SDL_Rect destination = {
+@@ -2335,7 +2365,7 @@
+                 SDL_SetRenderTarget(b->renderer, b->sharp_texture) == 0) {
+                 const bool prescaled =
+                     SDL_RenderCopy(
+-                        b->renderer, b->texture, nullptr, nullptr) == 0;
++                        b->renderer, frame_texture, nullptr, nullptr) == 0;
+                 const bool restored =
+                     SDL_SetRenderTarget(b->renderer, nullptr) == 0;
+                 if (prescaled && restored) {
+@@ -2350,7 +2380,7 @@
+                 // retain the crisp nearest path.
+                 SDL_SetRenderTarget(b->renderer, nullptr);
+                 SDL_RenderCopy(
+-                    b->renderer, b->texture, nullptr, &destination);
++                    b->renderer, frame_texture, nullptr, &destination);
+             }
+         }
+     }
+@@ -2535,6 +2565,9 @@
+ #if SDL_VERSION_ATLEAST(2, 0, 12)
+     SDL_SetTextureScaleMode(b->texture,
+         enabled ? SDL_ScaleModeLinear : SDL_ScaleModeNearest);
++    if (b->texture2x)
++        SDL_SetTextureScaleMode(b->texture2x,
++            enabled ? SDL_ScaleModeLinear : SDL_ScaleModeNearest);
+ #endif
+ }
+ 
+@@ -3219,6 +3252,7 @@
+ }
+ 
+ void HostWindow::present(const uint8_t* /*rgb888*/) {}
++void HostWindow::present_scaled(const uint8_t* /*rgb888*/, int /*factor*/) {}
+ 
+ void HostWindow::load_input_config(const char* /*dir*/,
+                                    bool /*assist_tools_default*/,
+diff --git a/src/runtime/host_window_web.cpp b/src/runtime/host_window_web.cpp
+--- a/src/runtime/host_window_web.cpp
++++ b/src/runtime/host_window_web.cpp
+@@ -315,6 +315,10 @@
+ }
+ bool HostWindow::set_surface_size(int w,int h) { if(!impl_||!dimensions(w,h))return false; backend(impl_)->width=w;backend(impl_)->height=h;return true; }
+ bool HostWindow::drawable_size(int* w,int* h) const { if(!impl_||!w||!h)return false; auto d=backend(impl_)->shared.control.drawable.load(); *w=d&65535;*h=d>>16;return *w&&*h; }
++void HostWindow::present_scaled(const uint8_t* rgb, int factor) {
++    if (factor == 1) present(rgb);  // the web host never interpolates
++}
++
+ void HostWindow::present(const uint8_t* rgb) {
+     if(!impl_||!rgb)return;
+     auto& b=*backend(impl_);auto& s=b.shared;auto& v=s.video[b.back];
+diff --git a/src/runtime/host_platform.h b/src/runtime/host_platform.h
+--- a/src/runtime/host_platform.h
++++ b/src/runtime/host_platform.h
+@@ -42,6 +42,9 @@
+     // Block until the next frame's deadline. Call once per presented
+     // frame. No-op while uncapped.
+     void wait_for_next_frame();
++    // Block until halfway to the next deadline (no deadline change): the slot
++    // for an interpolated frame presented between two real ones.
++    void wait_half_frame();
+ 
+     // Realign the deadline to "now". Call after any non-real-time jump
+     // (startup, save-state load) so the pacer doesn't try to catch up.
+@@ -54,6 +57,7 @@
+ 
+ private:
+     using clock = std::chrono::steady_clock;
++    void sleep_until_point(clock::time_point target);
+     std::chrono::nanoseconds period_{};
+     clock::time_point next_{};
+     bool uncapped_ = false;
+diff --git a/src/runtime/host_platform.cpp b/src/runtime/host_platform.cpp
+--- a/src/runtime/host_platform.cpp
++++ b/src/runtime/host_platform.cpp
+@@ -63,14 +63,35 @@
+         next_ = now + period_;
+         return;
+     }
++    sleep_until_point(next_);
++
++    // Never pay back a late wake with a shortened following frame. That
++    // short/long pair is especially visible during steady pixel scrolling.
++    // Normal sub-millisecond timer error retains the absolute cadence; a
++    // scheduler or present stall above 1.5 ms establishes a fresh full-frame
++    // period instead of producing a visibly short recovery frame.
++    const clock::time_point woke = clock::now();
++    constexpr auto kLateTolerance = std::chrono::microseconds(1500);
++    next_ = woke > next_ + kLateTolerance ? woke + period_
++                                          : next_ + period_;
++}
++
++void FramePacer::wait_half_frame() {
++    if (uncapped_) return;
++    const clock::time_point target = next_ - period_ / 2;
++    if (clock::now() < target) sleep_until_point(target);
++}
++
++void FramePacer::sleep_until_point(clock::time_point target) {
++    const clock::time_point now = clock::now();
+     // A high-resolution waitable timer is already precise enough on modern
+     // Windows. Waiting directly on it avoids a 1.2 ms yield/spin tail whose
+     // wake time becomes erratic when the game process runs at Idle priority.
+ #if defined(_WIN32)
+-    if (next_ > now) {
++    if (target > now) {
+         if (wait_timer_) {
+             const auto due_ns = std::chrono::duration_cast<
+-                std::chrono::nanoseconds>(next_ - now).count();
++                std::chrono::nanoseconds>(target - now).count();
+             LARGE_INTEGER due;
+             due.QuadPart = -static_cast<LONGLONG>(
+                 due_ns >= 100 ? due_ns / 100 : 1);
+@@ -78,33 +99,23 @@
+             if (SetWaitableTimer(t, &due, 0, nullptr, nullptr, FALSE)) {
+                 WaitForSingleObject(t, INFINITE);
+             } else {
+-                std::this_thread::sleep_until(next_);
++                std::this_thread::sleep_until(target);
+             }
+         } else {
+-            std::this_thread::sleep_until(next_);
++            std::this_thread::sleep_until(target);
+         }
+     }
+ #else
+     // Hybrid wait: sleep most of the gap (cheap, but coarse), then yield
+     // through the final ~1 ms for deadline accuracy.
+     constexpr auto kSpinTail = std::chrono::microseconds(1200);
+-    if (next_ - now > kSpinTail) {
+-        std::this_thread::sleep_until(next_ - kSpinTail);
++    if (target - now > kSpinTail) {
++        std::this_thread::sleep_until(target - kSpinTail);
+     }
+ #endif
+-    while (clock::now() < next_) {
++    while (clock::now() < target) {
+         std::this_thread::yield();
+     }
+-
+-    // Never pay back a late wake with a shortened following frame. That
+-    // short/long pair is especially visible during steady pixel scrolling.
+-    // Normal sub-millisecond timer error retains the absolute cadence; a
+-    // scheduler or present stall above 1.5 ms establishes a fresh full-frame
+-    // period instead of producing a visibly short recovery frame.
+-    const clock::time_point woke = clock::now();
+-    constexpr auto kLateTolerance = std::chrono::microseconds(1500);
+-    next_ = woke > next_ + kLateTolerance ? woke + period_
+-                                          : next_ + period_;
+ }
+ 
+ std::vector<unsigned char> read_file(const std::string& path, std::string* error) {
+diff --git a/src/runtime/runtime.cpp b/src/runtime/runtime.cpp
+--- a/src/runtime/runtime.cpp
++++ b/src/runtime/runtime.cpp
+@@ -3825,6 +3825,21 @@
+ #endif
+     };
+ 
++    // Smooth motion: a game that installs gba::g_present_interpolator gets an
++    // interpolated frame presented half a period before each paced real one.
++    std::vector<uint8_t> interpolated_fb;
++    auto present_live_frame = [&]() {
++        if (gba::g_present_interpolator && pacer && !pacer->uncapped() && !fast_forward_active) {
++            interpolated_fb.resize(ppu.render_bytes() * 4u);
++            if (gba::g_present_interpolator(&ppu, live_fb.data(), ppu.render_width(),
++                                            ppu.render_height(), interpolated_fb.data())) {
++                win.present_scaled(interpolated_fb.data(), 2);
++                pacer->wait_half_frame();
++            }
++        }
++        win.present(live_fb.data());
++    };
++
+     if (args.window) {
+         runtime_set_host_service_hook([&]() { win.service_events(); });
+     }
+@@ -3872,7 +3887,7 @@
+                     }
+                 }
+                 if (phase_active) fp_t1 = FramePhaseRing::now_ns();
+-                if (present_frame) win.present(live_fb.data());
++                if (present_frame) present_live_frame();
+                 if (phase_active) fp_t2 = FramePhaseRing::now_ns();
+                 drain_host_audio();
+                 // Windowed present-in-place stays inside one step_once() for
+@@ -4266,7 +4281,7 @@
+                     }
+                 }
+                 if (phase_active) fp_t1 = FramePhaseRing::now_ns();
+-                if (present_frame) win.present(live_fb.data());
++                if (present_frame) present_live_frame();
+                 // Framedump (capture runs only) is attributed to present_us.
+                 if (framedump_dir && frame >= framedump_start &&
+                     (frame - framedump_start) % framedump_stride == 0 &&
