@@ -31,6 +31,7 @@ struct Field {
 Field g;  // written by tick(), read by the provider (both on the game thread)
 bool g_battle = false;
 Uint32 g_next = 0;
+int g_misses = 0;  // consecutive failed checks of the field still in use
 
 bool in_ewram(std::uint32_t a) { return a >= 0x02000000u && a < 0x02040000u; }
 
@@ -282,6 +283,15 @@ void tick() {
                 if (score(t, r, vram, 0.9, &samples) && samples >= 150) { f = t; ok = true; }
             }
         }
+    }
+    // A validated field can fail one check mid-scroll; keep it for a couple of
+    // ticks so the margins don't flash black, but still drop it on a real change.
+    const bool same_field = g.ok && g.map == f.map && g.layer[0] == f.layer[0] && g.layer[1] == f.layer[1];
+    if (ok) {
+        g_misses = 0;
+    } else if (sane && same_field && ++g_misses < 3) {
+        f = g;
+        ok = true;
     }
     f.ok = ok;
     if (!ok) f.width = f.height = 0;

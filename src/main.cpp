@@ -17,6 +17,12 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#elif defined(__ANDROID__)
+#include <algorithm>
+#include <limits>
+#include <jni.h>
+#include "ips_patch.h"
+#include "mobile_platform.h"
 #elif defined(__linux__)
 #include <sys/resource.h>
 #endif
@@ -99,8 +105,8 @@ bool m3_launcher_preboot(std::vector<std::string>& args) {
 
 }
 
-int main(int argc, char** argv) {
-#if defined(__linux__)
+int mother3_main(int argc, char** argv) {
+#if defined(__linux__) && !defined(__ANDROID__)
     // Generated guest calls require the same stack budget as the Windows build.
     struct rlimit stack;
     constexpr rlim_t required_stack = 256u * 1024u * 1024u;
@@ -177,12 +183,73 @@ int main(int argc, char** argv) {
     opts.max_view_width = 284;  // ceiling only; --view-width (launcher setting) picks the width
 
     std::vector<std::string> args(argv, argv + argc);
+#if defined(__ANDROID__)
+    // App-private storage becomes the working directory, diagnostics go to
+    // android-runtime.log and the APK payload's game.toml is appended.
+    gbarecomp::MobileProcessOptions mobile;
+    mobile.game_config = "variants/mother3en/game.toml";
+    mobile.program_name = "./Mother3Recomp";
+    gbarecomp::mobile_prepare_process(args, mobile);
+    // The setup Activity is Android's launcher: it already ran, and it stores
+    // the same config.ini [Launcher] keys the desktop launcher writes.
+    args.erase(std::remove(args.begin(), args.end(), std::string("--no-launcher")), args.end());
+    if (m3settings::load(".").widescreen) args.insert(args.begin() + 1, {"--view-width", "284"});
+    opts.orientation = gbarecomp::RunOptions::Orientation::Landscape;
+    opts.resume_suspend_state_on_launch = true;
+    opts.ui_touch_friendly = true;
+    opts.touch_pad_default = 1;
+    // shortcut: rewind/fast-forward stay desktop-only until rewind memory is measured on phones.
+    opts.expose_assist_tools = false;
+    opts.assist_tools_enabled_by_default = false;
+#else
     if (!m3_launcher_preboot(args)) return 0;
 #if defined(GBAGAME_RECOMP_UI)
     if (game_launcher_preboot(args, opts)) return 0;
+#endif
 #endif
     std::vector<char*> av;
     av.reserve(args.size());
     for (auto& arg : args) av.push_back(arg.data());
     return gbarecomp::run_game(static_cast<int>(av.size()), av.data(), opts);
 }
+
+#if defined(__ANDROID__)
+// The setup Activity applies a language patch to the imported Japanese ROM.
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_org_gbarecomp_GbaNative_applyRomPatch(JNIEnv* env, jclass, jbyteArray source, jbyteArray patch) {
+    if (!source || !patch) return nullptr;
+    std::vector<std::uint8_t> source_bytes(static_cast<std::size_t>(env->GetArrayLength(source)));
+    std::vector<std::uint8_t> patch_bytes(static_cast<std::size_t>(env->GetArrayLength(patch)));
+    env->GetByteArrayRegion(source, 0, static_cast<jsize>(source_bytes.size()),
+                            reinterpret_cast<jbyte*>(source_bytes.data()));
+    env->GetByteArrayRegion(patch, 0, static_cast<jsize>(patch_bytes.size()),
+                            reinterpret_cast<jbyte*>(patch_bytes.data()));
+    if (env->ExceptionCheck()) return nullptr;
+    std::uint8_t* output = nullptr;
+    std::size_t output_size = 0;
+    if (!rom_patch_apply(source_bytes.data(), source_bytes.size(), patch_bytes.data(), patch_bytes.size(),
+                         &output, &output_size))
+        return nullptr;
+    if (output_size > static_cast<std::size_t>(std::numeric_limits<jsize>::max())) {
+        std::free(output);
+        return nullptr;
+    }
+    jbyteArray result = env->NewByteArray(static_cast<jsize>(output_size));
+    if (result)
+        env->SetByteArrayRegion(result, 0, static_cast<jsize>(output_size), reinterpret_cast<const jbyte*>(output));
+    std::free(output);
+    return env->ExceptionCheck() ? nullptr : result;
+}
+
+extern "C" int SDL_main(int argc, char** argv) {
+    // The generated guest calls need a deeper stack than SDLActivity's thread.
+    const int result = gbarecomp::mobile_run_with_stack(mother3_main, argc, argv);
+    if (std::FILE* status = std::fopen("android-exit-code", "w")) {  // read by the setup Activity
+        std::fprintf(status, "%d", result);
+        std::fclose(status);
+    }
+    return result;
+}
+#else
+int main(int argc, char** argv) { return mother3_main(argc, argv); }
+#endif

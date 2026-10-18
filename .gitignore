@@ -51,3 +51,13 @@ __pycache__/
 
 recomp_coverage_*.json
 traces/
+
+# Android build output and local SDK path
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+*.apk
+*.keystore
+build-android-host/

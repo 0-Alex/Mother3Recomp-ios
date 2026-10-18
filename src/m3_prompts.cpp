@@ -31,7 +31,13 @@ constexpr std::uint8_t kBlank = 0xDB;  // zero-width filler after a shortened wo
 // Index of each prompted button in m3settings / input.ini order.
 constexpr int kBindIndex[kCount] = {4, 5, 6, 7, 8, 9};
 
-enum Style { kKeyboard, kXbox, kPlayStation, kNintendo };
+enum Style { kKeyboard, kXbox, kPlayStation, kNintendo, kTouch };
+#if defined(__ANDROID__)
+constexpr Style kNoPad = kTouch;  // phones: the on-screen buttons carry GBA names
+#else
+constexpr Style kNoPad = kKeyboard;
+#endif
+const char* const kTouchLabels[kCount] = {"A", "B", "L", "R", "St", "Se"};
 
 using Glyph = std::array<std::uint16_t, 8>;  // 8 rows; bit x = column x
 
@@ -243,8 +249,9 @@ void patch_script() {
 void redraw() {
     for (int b = 0; b < kCount; ++b) {
         const int i = kBindIndex[b];
-        const std::string label = g.style == kKeyboard ? key_label(g.binds.keys[i])
-                                                       : pad_label(pad_source(i), g.style);
+        const std::string label = g.style == kTouch      ? kTouchLabels[b]
+                                  : g.style == kKeyboard ? key_label(g.binds.keys[i])
+                                                         : pad_label(pad_source(i), g.style);
         if (label == g.drawn[b]) continue;
         Glyph gl;
         const int advance = render(label, gl);
@@ -281,13 +288,14 @@ void tick() {
     if (!g.patched || now >= g.next_binds) {
         refresh_binds();
         g.next_binds = now + 2000;
-        if (!g.patched) g.style = g.guid.empty() ? kKeyboard : style_of(g.pad_type);
+        if (!g.patched) g.style = g.guid.empty() ? kNoPad : style_of(g.pad_type);
     }
     if (!g.patched) {
         patch_script();
         g.patched = true;
     }
-    if (g.binds.prompt_style > 0) g.style = static_cast<Style>(g.binds.prompt_style % 4);  // 4 = keyboard
+    if (g.binds.prompt_style > 0)  // 4 = keyboard (the on-screen buttons on Android)
+        g.style = g.binds.prompt_style == 4 ? kNoPad : static_cast<Style>(g.binds.prompt_style);
     else poll_device();
     redraw();
 }
