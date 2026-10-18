@@ -274,7 +274,7 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
     auto build_windows = [&] {
         const int pal = st.flavor * 6;
         command_bar = rom.window(kW / 8, 3, pal);
-        status_box = rom.window(8, 3, pal);  // same height as the command bar
+        status_box = rom.window(kW / 8 / kPartySize, 3, pal);  // same height as the command bar
         note = rom.window(24, 5, pal);
         page_win = rom.window(38, 19, pal);
         built_flavor = st.flavor;
@@ -457,8 +457,7 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
         constexpr int kPx = 8, kPy = 26, kLabelX = kPx + 18, kRight = kPx + 38 * 8 - 14, kHintY = kPy + 136;
         if (page == Page::Main) {
             for (int k = 0; k < kPartySize; ++k) {
-                const int gap = (kW - kPartySize * status_box.w) / (kPartySize + 1);
-                const int x = gap + k * (status_box.w + gap), y = kH - status_box.h - 2;
+                const int x = k * status_box.w, y = kH - status_box.h;
                 cv.draw(status_box, x, y);
                 ui.text(kParty[k].name, x + (status_box.w - ui.width(kParty[k].name)) / 2, y + 7);
             }
