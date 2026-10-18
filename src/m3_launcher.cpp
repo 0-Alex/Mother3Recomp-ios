@@ -101,7 +101,7 @@ struct Ui {
     }
 };
 
-enum class Input { None, Up, Down, Left, Right, Confirm, Back };
+enum class Input { None, Up, Down, Left, Right, Confirm, Back, PrevPage, NextPage };
 
 Input map_key(SDL_Keycode k) {
     switch (k) {
@@ -111,6 +111,8 @@ Input map_key(SDL_Keycode k) {
         case SDLK_RIGHT: case SDLK_d: return Input::Right;
         case SDLK_RETURN: case SDLK_x: case SDLK_SPACE: return Input::Confirm;
         case SDLK_ESCAPE: case SDLK_z: case SDLK_BACKSPACE: return Input::Back;
+        case SDLK_q: case SDLK_PAGEUP: return Input::PrevPage;
+        case SDLK_e: case SDLK_PAGEDOWN: return Input::NextPage;
         default: return Input::None;
     }
 }
@@ -123,6 +125,8 @@ Input map_button(Uint8 b) {
         case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return Input::Right;
         case SDL_CONTROLLER_BUTTON_A: case SDL_CONTROLLER_BUTTON_START: return Input::Confirm;
         case SDL_CONTROLLER_BUTTON_B: case SDL_CONTROLLER_BUTTON_BACK: return Input::Back;
+        case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return Input::PrevPage;
+        case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return Input::NextPage;
         default: return Input::None;
     }
 }
@@ -230,8 +234,8 @@ struct Pads {
 enum class Page { Main, Settings, Controls, Mods };
 const char* const kItems[] = {"Play", "Settings", "Controls", "Mods", "Quit"};
 constexpr int kItemCount = 5;
-constexpr int kSettingRows = 9;                         // 8 options + Back
-constexpr int kControlRows = m3settings::kButtonCount + 2;  // buttons + Reset + Back
+constexpr int kSettingRows = 8;
+constexpr int kControlRows = m3settings::kButtonCount + 1;  // buttons + Reset
 
 void apply_display(SDL_Window* win, int mode) {
     SDL_SetWindowFullscreen(win, mode == 1 ? SDL_WINDOW_FULLSCREEN_DESKTOP : mode == 2 ? SDL_WINDOW_FULLSCREEN : 0);
@@ -294,8 +298,8 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
 
     Walker walker;
     Stick stick;
-    int row = 0, column = 0, frame = 0;
-    bool capturing = false, running = true;
+    int row = 0, frame = 0;
+    bool capturing = false, running = true, using_pad = false;
     Result result = Result::Quit;
 
     std::vector<m3mods::Mod> mods;
@@ -311,6 +315,18 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
         else m3settings::save(dir, st);
         page = Page::Main;
         capturing = false;
+    };
+    auto open_page = [&](Page p) {
+        page = p;
+        cursor_at = static_cast<int>(p);
+        row = 0;
+        if (p == Page::Mods) open_mods();
+    };
+    // Bottom-of-page help in the labels of whatever the player last pressed.
+    auto hint = [&](const char* confirm) {
+        if (!using_pad) return std::string("X ") + confirm + "    Z Back    Q / E Page";
+        return pad_name("a", pads.type) + " " + confirm + "    " + pad_name("b", pads.type) + " Back    " +
+               pad_name("leftshoulder", pads.type) + " / " + pad_name("rightshoulder", pads.type) + " Page";
     };
     auto change_setting = [&](int delta) {
         switch (row) {
@@ -337,16 +353,16 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             if (e.type == SDL_CONTROLLERDEVICEADDED) { SDL_GameControllerOpen(e.cdevice.which); pads.refresh(); }
             if (e.type == SDL_CONTROLLERDEVICEREMOVED) pads.refresh();
 
-            if (capturing) {  // the next key / button becomes the bind; Escape cancels
+            if (capturing) {  // a key rebinds the keyboard, a button the controller; Escape cancels
                 const int b = row;
                 if (e.type == SDL_KEYDOWN && !e.key.repeat) {
-                    if (e.key.keysym.scancode != SDL_SCANCODE_ESCAPE && column == 0)
+                    if (e.key.keysym.scancode != SDL_SCANCODE_ESCAPE)
                         st.keys[b] = SDL_GetScancodeName(e.key.keysym.scancode);
                     capturing = false;
-                } else if (column == 1 && e.type == SDL_CONTROLLERBUTTONDOWN) {
+                } else if (e.type == SDL_CONTROLLERBUTTONDOWN) {
                     pads.set(b, 1, e.cbutton.button, 0);
                     capturing = false;
-                } else if (column == 1 && e.type == SDL_CONTROLLERAXISMOTION && std::abs(e.caxis.value) > 20000) {
+                } else if (e.type == SDL_CONTROLLERAXISMOTION && std::abs(e.caxis.value) > 20000) {
                     pads.set(b, 2, e.caxis.axis, e.caxis.value < 0 ? -1 : 1);
                     capturing = false;
                 }
@@ -358,6 +374,15 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             else if (e.type == SDL_CONTROLLERBUTTONDOWN) in = map_button(e.cbutton.button);
             else if (e.type == SDL_CONTROLLERAXISMOTION) in = stick.input(e.caxis);
             if (in == Input::None) continue;
+            using_pad = e.type != SDL_KEYDOWN;
+
+            if (in == Input::PrevPage || in == Input::NextPage) {  // cycle Settings, Controls, Mods
+                const int at = page == Page::Main ? (in == Input::NextPage ? 0 : 4) : static_cast<int>(page);
+                const int next = (at - 1 + (in == Input::NextPage ? 1 : 2)) % 3 + 1;
+                if (page != Page::Main) leave_page();
+                open_page(static_cast<Page>(next));
+                continue;
+            }
 
             switch (page) {
                 case Page::Main:
@@ -367,35 +392,31 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
                     if (in == Input::Confirm) {
                         if (cursor_at == 0) { result = Result::Play; running = false; }
                         else if (cursor_at == kItemCount - 1) running = false;
-                        else {
-                            page = static_cast<Page>(cursor_at);
-                            row = column = 0;
-                            if (page == Page::Mods) open_mods();
-                        }
+                        else open_page(static_cast<Page>(cursor_at));
                     }
                     break;
                 case Page::Settings:
                     if (in == Input::Up) row = (row + kSettingRows - 1) % kSettingRows;
                     if (in == Input::Down) row = (row + 1) % kSettingRows;
                     if (in == Input::Left) change_setting(-1);
-                    if (in == Input::Right || (in == Input::Confirm && row < kSettingRows - 1)) change_setting(1);
-                    if (in == Input::Back || (in == Input::Confirm && row == kSettingRows - 1)) leave_page();
+                    if (in == Input::Right || in == Input::Confirm) change_setting(1);
+                    if (in == Input::Back) leave_page();
                     break;
                 case Page::Controls:
                     if (in == Input::Up) row = (row + kControlRows - 1) % kControlRows;
                     if (in == Input::Down) row = (row + 1) % kControlRows;
-                    if (in == Input::Left || in == Input::Right) column ^= 1;
-                    if (in == Input::Back || (in == Input::Confirm && row == kControlRows - 1)) leave_page();
-                    else if (in == Input::Confirm && row == kControlRows - 2) {
-                        if (column == 0) st.keys = m3settings::defaults().keys; else pads.reset();
-                    } else if (in == Input::Confirm && (column == 0 || pads.available())) capturing = true;
+                    if (in == Input::Back) leave_page();
+                    else if (in == Input::Confirm && row == kControlRows - 1) {
+                        st.keys = m3settings::defaults().keys;
+                        pads.reset();
+                    } else if (in == Input::Confirm) capturing = true;
                     break;
-                case Page::Mods: {  // rows: each mod, then "Open mods folder", then "Back"
-                    const int rows = static_cast<int>(mods.size()) + 2;
+                case Page::Mods: {  // rows: each mod, then "Open mods folder"
+                    const int rows = static_cast<int>(mods.size()) + 1;
                     if (in == Input::Up) row = (row + rows - 1) % rows;
                     if (in == Input::Down) row = (row + 1) % rows;
-                    if (in == Input::Back || (in == Input::Confirm && row == rows - 1)) leave_page();
-                    else if (in == Input::Confirm && row == rows - 2) {
+                    if (in == Input::Back) leave_page();
+                    else if (in == Input::Confirm && row == rows - 1) {
                         const std::string url = "file:///" + m3mods::folder(dir);
                         SDL_OpenURL(url.c_str());
                     } else if (in == Input::Confirm && mods[row].valid) {
@@ -433,7 +454,7 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             ui.text(kItems[i], item_x[i], 4, i == cursor_at ? kInk : (page == Page::Main ? kInk : kDim));
         }
 
-        constexpr int kPx = 8, kPy = 26, kLabelX = kPx + 18, kRight = kPx + 38 * 8 - 14;
+        constexpr int kPx = 8, kPy = 26, kLabelX = kPx + 18, kRight = kPx + 38 * 8 - 14, kHintY = kPy + 136;
         if (page == Page::Main) {
             for (int k = 0; k < kPartySize; ++k) {
                 const int x = k * status_box.w, y = kH - status_box.h;
@@ -445,10 +466,9 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             const std::string values[kSettingRows] = {
                 kFlavors[st.flavor], kDisplayModes[st.fullscreen], std::to_string(st.scale) + "x",
                 st.sharp_filter ? "Sharp" : "Pixel", "", std::to_string(st.volume) + "%",
-                kPromptStyles[st.prompt_style], st.widescreen ? "On (16:9)" : "Off", ""};
+                kPromptStyles[st.prompt_style], st.widescreen ? "On (16:9)" : "Off"};
             const char* labels[kSettingRows] = {"Window flavor", "Display", "Window size", "Scaling",
-                                                "Screen colors", "Volume", "Button prompts", "Widescreen",
-                                                "Back"};
+                                                "Screen colors", "Volume", "Button prompts", "Widescreen"};
             for (int i = 0; i < kSettingRows; ++i) {
                 const int y = kPy + 8 + i * 13;
                 if (i == row) ui.cursor(kLabelX - 10, y + 4);
@@ -458,28 +478,27 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
                     for (int s = 0; s < 5; ++s) if (st.screen == kScreens[s]) v = kScreenNames[s];
                 if (!v.empty()) ui.choice(v, kRight, y, i == row);
             }
-            ui.text("Saved when you leave this page.", kLabelX, kPy + 19 * 8 - 22, kDim);
+            ui.text("Left / Right changes a setting. Saved when you leave.", kLabelX, kHintY - 12, kDim);
+            ui.text(hint("Change"), kLabelX, kHintY, kDim);
         } else if (page == Page::Controls) {
             cv.draw(page_win, kPx, kPy);
-            const int key_x = kPx + 120, pad_x = kPx + 214;
-            ui.text("Keyboard", key_x, kPy + 4, column == 0 ? kInk : kDim);
-            ui.text(pads.available() ? "Gamepad" : "No gamepad", pad_x, kPy + 4, column == 1 ? kInk : kDim);
+            const int key_x = kPx + 100, pad_x = kPx + 200;
+            ui.text("GBA", kLabelX, kPy + 4, kDim);
+            ui.text("Keyboard", key_x, kPy + 4, kDim);
+            ui.text(pads.available() ? "Controller" : "No controller", pad_x, kPy + 4, kDim);
             for (int i = 0; i < kControlRows; ++i) {
-                const int y = kPy + 16 + i * 11;
+                const int y = kPy + 16 + i * 10;
+                const std::uint32_t c = i == row ? kHot : kInk;
                 if (i == row) ui.cursor(kLabelX - 10, y + 4);
-                if (i == kControlRows - 2) { ui.text("Reset to defaults", kLabelX, y); continue; }
-                if (i == kControlRows - 1) { ui.text("Back", kLabelX, y); continue; }
-                ui.text(m3settings::kButtonLabels[i], kLabelX, y);
-                const bool cap = capturing && i == row;
-                const std::string key = cap && column == 0 ? "Press a key..." : st.keys[i];
-                // Movement always follows the left stick (the runtime reads it directly);
-                // the D-pad bind is the rebindable second input.
-                static const char* const kStick[] = {"LS Up", "LS Down", "LS Left", "LS Right"};
-                std::string pad = cap && column == 1 ? "Press a button..." : pads.label(i);
-                if (i < 4 && !(cap && column == 1)) pad = std::string(kStick[i]) + ", " + pad;
-                ui.text(key, key_x, y, i == row && column == 0 ? kHot : kInk);
-                ui.text(pads.available() ? pad : "-", pad_x, y, i == row && column == 1 ? kHot : kInk);
+                if (i == kControlRows - 1) { ui.text("Reset all to defaults", kLabelX, y, c); continue; }
+                ui.text(m3settings::kButtonLabels[i], kLabelX, y, c);
+                if (capturing && i == row) { ui.text("Press a key or button...", key_x, y, kHot); continue; }
+                ui.text(st.keys[i], key_x, y, c);
+                ui.text(pads.available() ? pads.label(i) : "-", pad_x, y, c);
             }
+            // The runtime reads the left stick directly, so it isn't a bind.
+            ui.text_right("Left stick always moves", kRight, kPy + 16 + (kControlRows - 1) * 10, kDim);
+            ui.text(capturing ? std::string("Escape cancels") : hint("Rebind"), kLabelX, kHintY, kDim);
         } else {  // Mods
             cv.draw(page_win, kPx, kPy);
             constexpr int kVisible = 7;
@@ -506,9 +525,8 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             const int y_open = kPy + 10 + kVisible * 13 + 4;
             if (row == count) ui.cursor(kLabelX - 10, y_open + 4);
             ui.text("Open mods folder", kLabelX, y_open);
-            if (row == count + 1) ui.cursor(kLabelX - 10, y_open + 17);
-            ui.text("Back", kLabelX, y_open + 13);
-            ui.text("Slower: changes game code, runs in compatibility mode.", kLabelX, kPy + 136, kDim);
+            ui.text("Slower: changes game code, runs in compatibility mode.", kLabelX, kHintY - 12, kDim);
+            ui.text(hint("Toggle"), kLabelX, kHintY, kDim);
         }
 
         SDL_UpdateTexture(tex, nullptr, cv.px.data(), kW * 4);

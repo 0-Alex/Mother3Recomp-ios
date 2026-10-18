@@ -38,8 +38,10 @@ your ROM; no game art ships with the download. Run with `--classic-launcher` to 
 
 - **Settings:** window flavor (the game's Plain to Melon), display mode, window size, scaling, screen colors,
   volume, and **Button prompts**.
-- **Controls:** keyboard and controller columns. Pick a cell and press the new key or button (Escape cancels).
-  On controllers the left stick always moves; the D-pad is the rebindable second input.
+- **Controls:** pick a GBA button, then press the new key or controller button; whichever you press is the one
+  that changes (Escape cancels). On controllers the left stick always moves; the D-pad is the rebindable second input.
+- **Getting around:** each page shows its buttons at the bottom. B (or Z / Escape) goes back, and LB / RB
+  (or Q / E) jumps between Settings, Controls and Mods.
 - **Button prompts:** the game's own text ("press the A Button") shows the button you actually use: Xbox,
   PlayStation or Nintendo labels, or your keyboard key, switching when you change controller. Set a fixed style
   in Settings if you prefer.
