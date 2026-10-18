@@ -93,15 +93,15 @@ bool m3_launcher_preboot(std::vector<std::string>& args) {
             if (!files.bios_path.empty() && files.bios_path[0] != '/' && files.bios_path.find(':') == std::string::npos)
                 files.bios_path = dir + "/" + files.bios_path;  // relative to the game folder, like rom.cfg
         }
-        files.english = m3assets::Rom(files.rom).ok();
+        files.drawable = m3assets::Rom(files.rom).ok();
     } else if (!m3setup::load(dir, &files) && !m3setup::choose(dir, &files, false)) {
         return false;  // the player cancelled setup
     }
     m3settings::Settings settings = m3settings::load(dir);
     for (;;) {
-        m3assets::Rom rom(files.english ? files.rom : std::vector<std::uint8_t>{});
-        if (!rom.ok()) {  // other translations: their text tables aren't the ones the launcher draws from
-            std::fprintf(stderr, "m3-launcher: '%s' isn't the English v1.3 ROM; starting the game directly.\n",
+        m3assets::Rom rom(files.drawable ? files.rom : std::vector<std::uint8_t>{});
+        if (!rom.ok()) {  // its sprite/font/map tables aren't laid out like English v1.3
+            std::fprintf(stderr, "m3-launcher: can't draw from '%s'; starting the game directly.\n",
                          files.rom_path.c_str());
             break;
         }
