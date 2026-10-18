@@ -154,7 +154,7 @@ int main(int argc, char** argv) {
     opts.launcher_source_rom_sha1 = kJapanSha1;
     opts.launcher_required_patch_sha1 = nullptr;
     opts.launcher_accept_patched_rom = true;   // supported patched language images work directly
-    opts.rom_post_load_hook = &mother3_apply_hq_audio_patch;
+    opts.rom_post_load_hook = &mother3_rom_post_load;
     opts.launcher_rom_patch_note =
         "HQ Audio is built in and applied to supported Japanese and fan-translated ROMs. "
         "IPS, IPS32, BPS or UPS language patches can be selected here.";

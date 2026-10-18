@@ -43,6 +43,7 @@ add_executable(Mother3Recomp
     src/m3_assets.cpp
     src/m3_launcher.cpp
     src/m3_settings.cpp
+    src/m3_prompts.cpp
     ${GAME_GENERATED_SOURCES})
 
 # Embed only the HQ mixer code; the ROM itself is patched in memory after the
@@ -107,7 +108,7 @@ if(GBAGAME_RECOMP_UI)
     set_property(SOURCE src/main.cpp APPEND PROPERTY
         COMPILE_DEFINITIONS GBAGAME_RECOMP_UI)
     # The game-owned launcher writes gamepad binds through recomp-ui's input.ini store.
-    set_property(SOURCE src/m3_launcher.cpp APPEND PROPERTY
+    set_property(SOURCE src/m3_launcher.cpp src/m3_prompts.cpp APPEND PROPERTY
         COMPILE_DEFINITIONS GBAGAME_RECOMP_UI)
     target_include_directories(Mother3Recomp PRIVATE
         "${RECOMP_UI_ROOT}/src/common" "${RECOMP_UI_ROOT}/src/consoles/gba")

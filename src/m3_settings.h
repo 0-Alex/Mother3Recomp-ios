@@ -19,6 +19,7 @@ struct Settings {
     bool sharp_filter = true;
     std::string screen = "raw";  // raw, backlit, frontlit, unlit, classic
     int volume = 100;            // 0..100
+    int prompt_style = 0;        // in-game buttons: 0 auto, 1 Xbox, 2 PlayStation, 3 Nintendo, 4 keyboard
     std::array<std::string, kButtonCount> keys;  // SDL scancode names
 };
 

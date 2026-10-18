@@ -38,6 +38,7 @@ const char* const kFlavors[] = {"Plain", "Mint", "Strawberry", "Banana", "Peanut
 const char* const kDisplayModes[] = {"Windowed", "Fullscreen", "Exclusive fullscreen"};
 const char* const kScreens[] = {"raw", "backlit", "frontlit", "unlit", "classic"};
 const char* const kScreenNames[] = {"Raw", "Backlit", "Frontlit", "Unlit", "Classic"};
+const char* const kPromptStyles[] = {"Auto", "Xbox", "PlayStation", "Nintendo", "Keyboard"};
 
 // Standing frames run clockwise from facing down; walk cycles are +8 and +16.
 enum Dir { kDown = 0, kLeft = 2, kUp = 4, kRight = 6 };
@@ -213,7 +214,7 @@ struct Pads {
 enum class Page { Main, Settings, Controls, Mods };
 const char* const kItems[] = {"Play", "Settings", "Controls", "Mods", "Quit"};
 constexpr int kItemCount = 5;
-constexpr int kSettingRows = 7;                         // 6 options + Back
+constexpr int kSettingRows = 8;                         // 7 options + Back
 constexpr int kControlRows = m3settings::kButtonCount + 2;  // buttons + Reset + Back
 
 void apply_display(SDL_Window* win, int mode) {
@@ -298,6 +299,7 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
                 break;
             }
             case 5: st.volume = std::clamp(st.volume + delta * 10, 0, 100); break;
+            case 6: st.prompt_style = (st.prompt_style + 5 + delta) % 5; break;
         }
     };
 
@@ -400,9 +402,10 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             cv.draw(page_win, kPx, kPy);
             const std::string values[kSettingRows] = {
                 kFlavors[st.flavor], kDisplayModes[st.fullscreen], std::to_string(st.scale) + "x",
-                st.sharp_filter ? "Sharp" : "Pixel", "", std::to_string(st.volume) + "%", ""};
+                st.sharp_filter ? "Sharp" : "Pixel", "", std::to_string(st.volume) + "%",
+                kPromptStyles[st.prompt_style], ""};
             const char* labels[kSettingRows] = {"Window flavor", "Display", "Window size", "Scaling",
-                                                "Screen colors", "Volume", "Back"};
+                                                "Screen colors", "Volume", "Button prompts", "Back"};
             for (int i = 0; i < kSettingRows; ++i) {
                 const int y = kPy + 10 + i * 14;
                 if (i == row) ui.cursor(kLabelX - 10, y + 4);

@@ -5,6 +5,7 @@
 #include "runtime_arm.h"
 #include "mother3_runtime_hooks.h"
 #include "hq_audio_mixer_data.h"
+#include "m3_prompts.h"
 
 namespace {
 
@@ -537,6 +538,9 @@ int run_hq_mixer_native(uint32_t mixer_start) {
 // 2. 0x03000000..0x03000400: static AOT holds vanilla SoundMainRAM, which the
 //    HQ Sound Mixing Mod repurposes as `hq_buffer` (16-bit audio sample buffer).
 int force_interp_mutable_ram(uint32_t pc, int thumb) {
+    // Runs at every dispatch, so only a counter here; tick() limits itself further.
+    static unsigned s_dispatches = 0;
+    if ((++s_dispatches & 0x3FFu) == 0) m3prompts::tick();
     const uint32_t mixer_start =
         (pc >= kHqMixerJapaneseStart && pc < kHqMixerJapaneseStart + kHqMixerSize)
             ? kHqMixerJapaneseStart
@@ -683,6 +687,13 @@ bool mother3_apply_hq_audio_patch(std::uint8_t* rom, std::size_t rom_size,
     std::fprintf(stderr, "[mother3:hq-audio] built-in mixer applied (%s layout)\n",
                  japanese ? "Japanese" : "fan translation");
     return true;
+}
+
+// Prompts only remember the image here; they edit it once the game runs, after the
+// runtime has hashed it, so the stock image keeps its native code path.
+bool mother3_rom_post_load(std::uint8_t* rom, std::size_t rom_size, const char* source_sha1) {
+    m3prompts::attach(rom, rom_size, source_sha1);
+    return mother3_apply_hq_audio_patch(rom, rom_size, source_sha1);
 }
 
 void mother3_install_runtime_hooks() {
