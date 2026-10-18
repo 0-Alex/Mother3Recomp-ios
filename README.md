@@ -13,6 +13,15 @@ Bring your own ROM and game files.
 
 **v1.0.6 updates all platforms.**
 
+## Features
+
+- MOTHER 3's own launcher: the party walks around outside Tazmily, drawn from your ROM (no game art ships)
+- On-screen buttons in the game's text match your controller (Xbox, PlayStation or Nintendo) or keyboard
+- Controls page for keyboard and controller; the left stick always moves
+- Mods: drop `.ips`, `.bps` or `.ups` patches in the `mods` folder and tick them in the launcher
+- Window flavors, display, scaling and screen-color options; a Windows bezel built from your ROM
+- Built-in high-quality audio mixing
+
 ## Start playing
 
 1. Download and extract your platform's package, or install the Android APK.
