@@ -230,7 +230,7 @@ struct Pads {
 enum class Page { Main, Settings, Controls, Mods };
 const char* const kItems[] = {"Play", "Settings", "Controls", "Mods", "Quit"};
 constexpr int kItemCount = 5;
-constexpr int kSettingRows = 8;                         // 7 options + Back
+constexpr int kSettingRows = 9;                         // 8 options + Back
 constexpr int kControlRows = m3settings::kButtonCount + 2;  // buttons + Reset + Back
 
 void apply_display(SDL_Window* win, int mode) {
@@ -326,6 +326,7 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             }
             case 5: st.volume = std::clamp(st.volume + delta * 10, 0, 100); break;
             case 6: st.prompt_style = (st.prompt_style + 5 + delta) % 5; break;
+            case 7: st.widescreen = !st.widescreen; break;
         }
     };
 
@@ -444,11 +445,12 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             const std::string values[kSettingRows] = {
                 kFlavors[st.flavor], kDisplayModes[st.fullscreen], std::to_string(st.scale) + "x",
                 st.sharp_filter ? "Sharp" : "Pixel", "", std::to_string(st.volume) + "%",
-                kPromptStyles[st.prompt_style], ""};
+                kPromptStyles[st.prompt_style], st.widescreen ? "On (16:9)" : "Off", ""};
             const char* labels[kSettingRows] = {"Window flavor", "Display", "Window size", "Scaling",
-                                                "Screen colors", "Volume", "Button prompts", "Back"};
+                                                "Screen colors", "Volume", "Button prompts", "Widescreen",
+                                                "Back"};
             for (int i = 0; i < kSettingRows; ++i) {
-                const int y = kPy + 10 + i * 14;
+                const int y = kPy + 8 + i * 13;
                 if (i == row) ui.cursor(kLabelX - 10, y + 4);
                 ui.text(labels[i], kLabelX, y);
                 std::string v = values[i];

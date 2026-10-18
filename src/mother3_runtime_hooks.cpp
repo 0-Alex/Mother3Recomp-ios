@@ -8,6 +8,7 @@
 #include "m3_prompts.h"
 #include "m3_bezel.h"
 #include "m3_mods.h"
+#include "m3_widescreen.h"
 #include "m3_settings.h"
 #include <SDL.h>
 #include <string>
@@ -548,6 +549,7 @@ int force_interp_mutable_ram(uint32_t pc, int thumb) {
     if ((++s_dispatches & 0x3FFu) == 0) {
         m3mods::apply_deferred();  // no-op after the first call
         m3prompts::tick();
+        m3widescreen::tick();
     }
     const uint32_t mixer_start =
         (pc >= kHqMixerJapaneseStart && pc < kHqMixerJapaneseStart + kHqMixerSize)

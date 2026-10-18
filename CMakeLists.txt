@@ -46,6 +46,7 @@ add_executable(Mother3Recomp
     src/m3_prompts.cpp
     src/m3_bezel.cpp
     src/m3_mods.cpp
+    src/m3_widescreen.cpp
     ${GAME_GENERATED_SOURCES})
 
 # Embed only the HQ mixer code; the ROM itself is patched in memory after the

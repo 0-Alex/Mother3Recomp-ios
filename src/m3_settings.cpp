@@ -113,6 +113,7 @@ Settings load(const std::string& dir) {
     s.sharp_filter = to_int(cfg, "sharp_filter", 1, 0, 1) != 0;
     s.volume = to_int(cfg, "volume", s.volume, 0, 100);
     s.prompt_style = to_int(cfg, "m3_button_prompts", s.prompt_style, 0, 4);
+    s.widescreen = to_int(cfg, "m3_widescreen", 0, 0, 1) != 0;
     if (auto it = cfg.find("screen"); it != cfg.end())
         for (const char* name : kScreens)
             if (lower(it->second) == name) s.screen = name;
@@ -130,16 +131,19 @@ void save(const std::string& dir, const Settings& s) {
                    {"sharp_filter", s.sharp_filter ? "1" : "0"},
                    {"screen", s.screen},
                    {"volume", std::to_string(s.volume)},
-                   {"m3_button_prompts", std::to_string(s.prompt_style)}});
+                   {"m3_button_prompts", std::to_string(s.prompt_style)},
+                   {"m3_widescreen", s.widescreen ? "1" : "0"}});
     std::vector<std::pair<std::string, std::string>> keys;
     for (int i = 0; i < kButtonCount; ++i) keys.emplace_back(kButtonKeys[i], s.keys[i]);
     write_section(dir + "/keybinds.ini", "player1", keys);
 }
 
 std::vector<std::string> game_args(const Settings& s) {
-    return {"--fullscreen=" + std::to_string(s.fullscreen), "--scale", std::to_string(s.scale),
-            "--sharp-filter", s.sharp_filter ? "1" : "0", "--screen", s.screen,
-            "--volume", std::to_string(s.volume)};
+    std::vector<std::string> args = {"--fullscreen=" + std::to_string(s.fullscreen), "--scale",
+                                      std::to_string(s.scale), "--sharp-filter", s.sharp_filter ? "1" : "0",
+                                      "--screen", s.screen, "--volume", std::to_string(s.volume)};
+    if (s.widescreen) args.insert(args.end(), {"--view-width", "284"});
+    return args;
 }
 
 }  // namespace m3settings

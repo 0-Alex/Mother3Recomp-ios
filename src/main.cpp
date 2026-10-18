@@ -174,7 +174,7 @@ int main(int argc, char** argv) {
     opts.launcher_expose_sharp_filter = true;
     opts.launcher_default_sharp_filter = true;
     opts.freely_resizable_window = true;
-    opts.max_view_width = 240;
+    opts.max_view_width = 284;  // ceiling only; --view-width (launcher setting) picks the width
 
     std::vector<std::string> args(argv, argv + argc);
     if (!m3_launcher_preboot(args)) return 0;
