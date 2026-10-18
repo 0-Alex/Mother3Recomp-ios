@@ -166,9 +166,10 @@ Image Rom::sprite_frame(int sprite, int frame) const {
         if (shape > 2) continue;
         const int w = kObjW[shape][size], h = kObjH[shape][size];
         const bool hf = pc.attr & 4, vf = pc.attr & 8;
+        const int first = pc.tile | ((pc.attr & 3) << 8);  // attr bits 0-1 are tile bits 8-9
         for (int ty = 0; ty < h / 8; ++ty)
             for (int tx = 0; tx < w / 8; ++tx) {
-                const std::size_t t = (pc.tile + ty * (w / 8) + tx) * 32;
+                const std::size_t t = std::size_t(first + ty * (w / 8) + tx) * 32;
                 if (t + 32 > gsz) continue;
                 const int dx = hf ? w - 8 - tx * 8 : tx * 8, dy = vf ? h - 8 - ty * 8 : ty * 8;
                 blit_tile(img, &b_[go + t], pal, 32 + pc.x + dx, 48 + pc.y + dy, hf, vf);
