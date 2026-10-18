@@ -30,6 +30,23 @@ SHA-1 values:
 
 Keep the executable with its bundled libraries and assets. Back up saves before changing builds or patches.
 
+## Launcher
+
+The first launch asks for your BIOS and ROM. After that, MOTHER 3's own launcher opens: the party walks around
+outside Tazmily while you pick **Play**, **Settings**, **Controls** or **Mods**. Everything it shows is drawn from
+your ROM; no game art ships with the download. Run with `--classic-launcher` to reopen the setup launcher.
+
+- **Settings:** window flavor (the game's Plain to Melon), display mode, window size, scaling, screen colors,
+  volume, and **Button prompts**.
+- **Controls:** keyboard and controller columns. Pick a cell and press the new key or button (Escape cancels).
+  On controllers the left stick always moves; the D-pad is the rebindable second input.
+- **Button prompts:** the game's own text ("press the A Button") shows the button you actually use: Xbox,
+  PlayStation or Nintendo labels, or your keyboard key, switching when you change controller. Set a fixed style
+  in Settings if you prefer.
+- **Mods:** put `.ips`, `.bps` or `.ups` patches in the `mods` folder (the page has an **Open mods folder**
+  button) and tick them. Mods that change game code are marked *slower*: they run in compatibility mode.
+- **Bezel (Windows):** built from your ROM on first launch in your window flavor; F10 hides it.
+
 ## Controls
 
 | Action | Keyboard |
@@ -42,7 +59,7 @@ Keep the executable with its bundled libraries and assets. Back up saves before 
 | Runtime menu (desktop) | F11 |
 | Exit (desktop) | Escape |
 
-Controllers support the D-pad and left stick. Button layouts and extra hotkeys can vary by package; use its settings or included remapping tool.
+Controllers move with the left stick (the D-pad works too). Rebind keys and buttons on the launcher's Controls page.
 
 ## Known issues
 

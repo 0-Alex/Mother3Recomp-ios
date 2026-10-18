@@ -60,12 +60,17 @@ std::vector<std::uint8_t> read_file(const std::string& path) {
     return out;
 }
 
-// --m3-launcher opts into the game-owned launcher (work in progress). Returns
-// false when the player quits; on Play it skips the classic launcher.
+// The game-owned launcher runs by default once a ROM is configured; until then
+// (first run) the classic launcher handles BIOS/ROM setup. --classic-launcher
+// forces the old one and --no-launcher skips both. Returns false when the
+// player quits; on Play it skips the classic launcher.
 bool m3_launcher_preboot(std::vector<std::string>& args) {
-    bool requested = false;
-    for (auto it = args.begin(); it != args.end();)
-        if (*it == "--m3-launcher") { requested = true; it = args.erase(it); } else ++it;
+    bool requested = true;
+    for (auto it = args.begin(); it != args.end();) {
+        if (*it == "--classic-launcher") requested = false;
+        if (*it == "--no-launcher") requested = false;
+        if (*it == "--m3-launcher" || *it == "--classic-launcher") it = args.erase(it); else ++it;
+    }
     if (!requested) return true;
     // Config files live next to the executable, where the runtime reads them.
     std::string dir = args[0];
@@ -74,9 +79,10 @@ bool m3_launcher_preboot(std::vector<std::string>& args) {
     std::string rom_path = arg_value(args, "--rom");
     if (rom_path.empty()) rom_path = cfg_path(dir + "/rom.cfg");
     m3assets::Rom rom(read_file(rom_path));
-    if (!rom.ok()) {
-        std::fprintf(stderr, "m3-launcher: no usable English v1.3 ROM at '%s'; using the classic launcher.\n",
-                     rom_path.c_str());
+    if (!rom.ok()) {  // first run, or a ROM the new launcher can't draw from
+        if (!rom_path.empty())
+            std::fprintf(stderr, "m3-launcher: no usable English v1.3 ROM at '%s'; using the classic launcher.\n",
+                         rom_path.c_str());
         return true;
     }
     m3settings::Settings settings = m3settings::load(dir);
@@ -121,7 +127,8 @@ int main(int argc, char** argv) {
         if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
             std::printf(
                 "Mother3Recomp [--bios <path>] [--rom <path>] [game.toml]\n\n"
-                "Windowed play opens the launcher first; --no-launcher skips it once.\n"
+                "Windowed play opens the launcher first; --no-launcher skips it once and\n"
+                "--classic-launcher opens the original setup launcher.\n"
                 "F10 toggles the bezel, F11 opens the menu, Escape exits.\n");
             return 0;
         }
