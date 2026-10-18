@@ -11,6 +11,8 @@
 #include "runtime.h"
 #include "runtime_arm.h"
 #include "mother3_runtime_hooks.h"
+#include "m3_assets.h"
+#include "m3_launcher.h"
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -28,6 +30,57 @@ namespace {
 constexpr const char* kEnglishSha1 = "306fb8874533b0fd0796208faa8bed2db4ae77fb";
 constexpr const char* kHqAudioSha1 = "4ffe71ce5c5e1e8d9be5fbd09968b60787169b21";
 constexpr const char* kJapanSha1   = "4f0f493e12c2a8c61b2d809af03f7abf87a85776";
+
+std::string arg_value(const std::vector<std::string>& args, const char* flag) {
+    for (std::size_t i = 1; i + 1 < args.size(); ++i)
+        if (args[i] == flag) return args[i + 1];
+    return {};
+}
+
+// First line of a path file the classic launcher writes (rom.cfg / bios.cfg).
+std::string cfg_path(const char* name) {
+    std::FILE* f = std::fopen(name, "rb");
+    if (!f) return {};
+    char line[1024] = {};
+    if (!std::fgets(line, sizeof line, f)) line[0] = 0;
+    std::fclose(f);
+    std::string s = line;
+    while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
+    return s;
+}
+
+std::vector<std::uint8_t> read_file(const std::string& path) {
+    std::vector<std::uint8_t> out;
+    if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+        std::uint8_t buf[1 << 16];
+        for (std::size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) out.insert(out.end(), buf, buf + n);
+        std::fclose(f);
+    }
+    return out;
+}
+
+// --m3-launcher opts into the game-owned launcher (work in progress). Returns
+// false when the player quits; on Play it skips the classic launcher.
+bool m3_launcher_preboot(std::vector<std::string>& args) {
+    bool requested = false;
+    for (auto it = args.begin(); it != args.end();)
+        if (*it == "--m3-launcher") { requested = true; it = args.erase(it); } else ++it;
+    if (!requested) return true;
+    std::string rom_path = arg_value(args, "--rom");
+    if (rom_path.empty()) rom_path = cfg_path("rom.cfg");
+    m3assets::Rom rom(read_file(rom_path));
+    if (!rom.ok()) {
+        std::fprintf(stderr, "m3-launcher: no usable English v1.3 ROM at '%s'; using the classic launcher.\n",
+                     rom_path.c_str());
+        return true;
+    }
+    if (m3launcher::run(rom) == m3launcher::Result::Quit) return false;
+    if (arg_value(args, "--rom").empty()) args.insert(args.end(), {"--rom", rom_path});
+    const std::string bios = cfg_path("bios.cfg");
+    if (arg_value(args, "--bios").empty() && !bios.empty()) args.insert(args.end(), {"--bios", bios});
+    args.push_back("--no-launcher");
+    return true;
+}
 
 }
 
@@ -107,14 +160,13 @@ int main(int argc, char** argv) {
     opts.freely_resizable_window = true;
     opts.max_view_width = 240;
 
-#if defined(GBAGAME_RECOMP_UI)
     std::vector<std::string> args(argv, argv + argc);
+    if (!m3_launcher_preboot(args)) return 0;
+#if defined(GBAGAME_RECOMP_UI)
     if (game_launcher_preboot(args, opts)) return 0;
+#endif
     std::vector<char*> av;
     av.reserve(args.size());
     for (auto& arg : args) av.push_back(arg.data());
     return gbarecomp::run_game(static_cast<int>(av.size()), av.data(), opts);
-#else
-    return gbarecomp::run_game(argc, argv, opts);
-#endif
 }

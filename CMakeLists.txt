@@ -40,6 +40,8 @@ endif()
 add_executable(Mother3Recomp
     src/main.cpp
     src/mother3_runtime_hooks.cpp
+    src/m3_assets.cpp
+    src/m3_launcher.cpp
     ${GAME_GENERATED_SOURCES})
 
 # Embed only the HQ mixer code; the ROM itself is patched in memory after the
