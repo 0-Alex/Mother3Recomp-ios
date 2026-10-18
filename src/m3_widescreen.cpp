@@ -169,10 +169,34 @@ int place_obj(int, std::uint16_t attr0, std::uint16_t attr1, std::uint16_t, int*
     return 1;
 }
 
+// BG0 carries text boxes and the cinematic letterbox bars. A bar is a row of
+// solid one-colour tiles, so a margin continues BG0 only where the tile at the
+// native screen edge is solid; text boxes (bordered, transparent edges) stay put.
+int extend_solid_edge(const std::uint8_t* r, int hx, int y, std::uint16_t* out) {
+    gba::GbaBus* bus = gbarecomp::active_bus();
+    if (!bus) return gba::kWsTilemapUnavailable;
+    const std::uint8_t* vram = bus->vram_ptr();
+    const int cnt = io16(r, 0x08), hofs = io16(r, 0x10) & 0x1FF, vofs = io16(r, 0x12) & 0x1FF;
+    if ((cnt >> 14) != 0 || (cnt & 0x80)) return gba::kWsTilemapUnavailable;
+    const int ex = hx < 0 ? 0 : 239;
+    const std::uint32_t at = ((cnt >> 8) & 31) * 0x800u +
+        2u * std::uint32_t((((y + vofs) >> 3) & 31) * 32 + (((ex + hofs) >> 3) & 31));
+    const std::uint16_t entry = static_cast<std::uint16_t>(vram[at] | (vram[at + 1] << 8));
+    const std::uint8_t* tile = vram + ((cnt >> 2) & 3) * 0x4000u + (entry & 0x3FFu) * 32u;
+    const std::uint8_t first = tile[0];
+    if ((first & 15) == 0 || (first >> 4) != (first & 15)) return gba::kWsTilemapUnavailable;
+    for (int i = 1; i < 32; ++i)
+        if (tile[i] != first) return gba::kWsTilemapUnavailable;
+    *out = entry;
+    return gba::kWsTilemapReplace;
+}
+
 int provide(int bg, int hx, int y, std::uint16_t* out) {
-    if (!g.ok || bg < 1 || bg > 3 || !g.bg_ok[bg]) return gba::kWsTilemapUnavailable;  // text/HUD stays empty
+    if (!g.ok) return gba::kWsTilemapUnavailable;
     const std::uint8_t* r = io();
     if (!r) return gba::kWsTilemapUnavailable;
+    if (bg == 0) return extend_solid_edge(r, hx, y, out);
+    if (bg > 3 || !g.bg_ok[bg]) return gba::kWsTilemapUnavailable;
     int cx, cy;
     camera(r, bg, &cx, &cy);
     if (!in_room(cx, cy, hx, y)) return gba::kWsTilemapUnavailable;
