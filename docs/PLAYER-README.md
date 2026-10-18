@@ -30,6 +30,31 @@ SHA-1 values:
 
 Keep the executable with its bundled libraries and assets. Back up saves before changing builds or patches.
 
+## Launcher
+
+The first launch asks for your BIOS and ROM in your system's file picker. Pick the English v1.3 ROM, or the
+Japanese ROM and then its translation patch (the patched ROM is saved in `mods/rom-patches`). After that,
+MOTHER 3's own launcher opens: the party walks around outside Tazmily while you pick **Play**, **Settings**,
+**Controls** or **Mods**. Everything it shows is drawn from your ROM; no game art ships with the download.
+
+- **Settings:** window flavor (the game's Plain to Melon), display mode, window size, scaling, screen colors,
+  volume, **Button prompts**, and **Change game files** to pick a different ROM or BIOS.
+- **Other translations** (such as Spanish) start the game directly, because the launcher draws its text from the
+  English ROM. Their settings still come from the last time you used the launcher.
+- **Controls:** pick a GBA button, then press the new key or controller button; whichever you press is the one
+  that changes (Escape cancels). On controllers the left stick always moves; the D-pad is the rebindable second input.
+- **Getting around:** each page shows its buttons at the bottom. B (or Z / Escape) goes back, and LB / RB
+  (or Q / E) jumps between Settings, Controls and Mods.
+- **Button prompts:** the game's own text ("press the A Button") shows the button you actually use: Xbox,
+  PlayStation or Nintendo labels, or your keyboard key, switching when you change controller. Set a fixed style
+  in Settings if you prefer.
+- **Mods:** put `.ips`, `.bps` or `.ups` patches in the `mods` folder (the page has an **Open mods folder**
+  button) and tick them. Mods that change game code are marked *slower*: they run in compatibility mode.
+- **Widescreen:** Settings > Widescreen shows 16:9 in towns, fields, rooms and battles: the field draws the real
+  map into the sides and battle backgrounds continue their pattern. Menus and anything else stay 4:3 with black
+  sides. At the edge of a map both sides go black by the same amount, so the picture stays centred, and screen wipes stay black outside. The bezel is not used in widescreen.
+- **Bezel (Windows):** built from your ROM on first launch in your window flavor; F10 hides it.
+
 ## Controls
 
 | Action | Keyboard |
@@ -42,7 +67,7 @@ Keep the executable with its bundled libraries and assets. Back up saves before 
 | Runtime menu (desktop) | F11 |
 | Exit (desktop) | Escape |
 
-Controllers support the D-pad and left stick. Button layouts and extra hotkeys can vary by package; use its settings or included remapping tool.
+Controllers move with the left stick (the D-pad works too). Rebind keys and buttons on the launcher's Controls page.
 
 ## Known issues
 

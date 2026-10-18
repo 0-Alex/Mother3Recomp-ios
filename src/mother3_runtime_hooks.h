@@ -5,3 +5,5 @@
 void mother3_install_runtime_hooks();
 bool mother3_apply_hq_audio_patch(std::uint8_t* rom, std::size_t rom_size,
                                   const char* source_sha1);
+// rom_post_load_hook: HQ audio patch plus in-game button prompts.
+bool mother3_rom_post_load(std::uint8_t* rom, std::size_t rom_size, const char* source_sha1);

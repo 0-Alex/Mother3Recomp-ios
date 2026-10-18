@@ -6,6 +6,13 @@
 #include "runtime_arm.h"
 #include "mother3_runtime_hooks.h"
 #include "hq_audio_mixer_data.h"
+#include "m3_prompts.h"
+#include "m3_bezel.h"
+#include "m3_mods.h"
+#include "m3_widescreen.h"
+#include "m3_settings.h"
+#include <SDL.h>
+#include <string>
 
 namespace {
 
@@ -538,6 +545,13 @@ int run_hq_mixer_native(uint32_t mixer_start) {
 // 2. 0x03000000..0x03000400: static AOT holds vanilla SoundMainRAM, which the
 //    HQ Sound Mixing Mod repurposes as `hq_buffer` (16-bit audio sample buffer).
 int force_interp_mutable_ram(uint32_t pc, int thumb) {
+    // Runs at every dispatch, so only a counter here; tick() limits itself further.
+    static unsigned s_dispatches = 0;
+    if ((++s_dispatches & 0x3FFu) == 0) {
+        m3mods::apply_deferred();  // no-op after the first call
+        m3prompts::tick();
+        m3widescreen::tick();
+    }
     // The two load ranges overlap, so pick the one whose mixer is actually installed.
     uint32_t mixer_start = 0u;
     for (uint32_t start : {kHqMixerFanStart, kHqMixerJapaneseStart}) {
@@ -687,6 +701,26 @@ bool mother3_apply_hq_audio_patch(std::uint8_t* rom, std::size_t rom_size,
     std::fprintf(stderr, "[mother3:hq-audio] built-in mixer applied (%s layout)\n",
                  japanese ? "Japanese" : "fan translation");
     return true;
+}
+
+// Mods (on the stock image, so BPS/UPS checksums match), then prompts and the
+// bezel, then HQ audio. Data-only mods and the prompts edit the image later,
+// after the runtime has hashed it, so it keeps its native code path.
+bool mother3_rom_post_load(std::uint8_t* rom, std::size_t rom_size, const char* source_sha1) {
+    std::string dir = ".";
+    if (char* base = SDL_GetBasePath()) {
+        dir = base;
+        SDL_free(base);
+        if (!dir.empty() && (dir.back() == '\\' || dir.back() == '/')) dir.pop_back();
+    }
+    const bool code_mods = m3mods::apply(rom, rom_size, dir);
+    m3prompts::attach(rom, rom_size, source_sha1);
+#if defined(_WIN32)
+    // mother3_bezel.dll draws a bezel composed from this ROM; refresh it if the flavor changed.
+    m3bezel::ensure(rom, rom_size, dir, m3settings::load(dir).flavor);
+#endif
+    const bool hq = mother3_apply_hq_audio_patch(rom, rom_size, source_sha1);
+    return code_mods || hq;
 }
 
 void mother3_install_runtime_hooks() {

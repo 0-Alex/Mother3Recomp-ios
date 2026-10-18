@@ -1,0 +1,370 @@
+package com.ylports.mother3recomp;
+
+import android.app.AlertDialog;
+
+import org.gbarecomp.GbaSetupActivity;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * Thin MOTHER 3 launcher diagnostic wrapper.
+ *
+ * Native stdout/stderr are redirected by gbarecomp to
+ * files/android-runtime.log. If SDL_main returns or the previous native
+ * process died, surface the tail here instead of making PLAY appear to do
+ * nothing.
+ *
+ * Also hosts the desktop launcher's MOTHER 3 settings (widescreen, in-game
+ * button prompts, mods). They are stored in the same files the native side
+ * reads on every platform: config.ini [Launcher] and mods/enabled.txt.
+ */
+public final class Mother3SetupActivity extends GbaSetupActivity {
+    private static final int PICK_MOD = 2001;
+    private static final long MAX_MOD_BYTES = 16L * 1024 * 1024;
+    private static final String[] PROMPT_STYLES =
+        {"Auto", "Xbox", "PlayStation", "Nintendo", "On-screen buttons"};
+    private android.widget.LinearLayout modList;
+
+    @Override
+    protected boolean supportsAutomaticLaunch() { return false; }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        showNativeLogIfChanged();
+    }
+
+    private void showNativeLogIfChanged() {
+        File status = new File(getFilesDir(), "android-exit-code");
+        if (!status.isFile()) return;
+        try {
+            String code = readTail(status, 32).trim();
+            status.delete();
+            if (code.equals("0")) return;
+        } catch (IOException error) {
+            return;
+        }
+        File log = new File(getFilesDir(), "android-runtime.log");
+        if (!log.isFile() || log.length() == 0) return;
+
+        String text;
+        try {
+            text = readTail(log, 12000);
+        } catch (IOException error) {
+            return;
+        }
+        if (text.trim().isEmpty()) return;
+
+        final String visible = lastLines(text, 45);
+        new AlertDialog.Builder(this)
+            .setTitle("MOTHER 3 - startup failed")
+            .setMessage(visible)
+            .setNeutralButton("Copy diagnostics", (dialog, which) -> copyDiagnostics())
+            .setPositiveButton("OK", null)
+            .show();
+    }
+
+    @Override
+    protected void addGameActions(android.widget.LinearLayout preferences) {
+        android.widget.Switch widescreen = new android.widget.Switch(this);
+        widescreen.setText("Widescreen (16:9 field and battles)");
+        styleOption(widescreen);
+        widescreen.setChecked("1".equals(iniValue("Launcher", "m3_widescreen")));
+        widescreen.setOnCheckedChangeListener((view, checked) ->
+            setIniValue("Launcher", "m3_widescreen", checked ? "1" : "0"));
+        preferences.addView(widescreen);
+
+        android.widget.Button prompts = new android.widget.Button(this);
+        int style = 0;
+        try { style = Integer.parseInt(iniValue("Launcher", "m3_button_prompts")); }
+        catch (NumberFormatException ignored) {}
+        final int[] current = {Math.max(0, Math.min(4, style))};
+        prompts.setText("In-game buttons: " + PROMPT_STYLES[current[0]]);
+        prompts.setAllCaps(false);
+        prompts.setOnClickListener(view -> {
+            current[0] = (current[0] + 1) % PROMPT_STYLES.length;
+            prompts.setText("In-game buttons: " + PROMPT_STYLES[current[0]]);
+            setIniValue("Launcher", "m3_button_prompts", Integer.toString(current[0]));
+        });
+        preferences.addView(prompts);
+
+        android.widget.TextView modsTitle = new android.widget.TextView(this);
+        modsTitle.setText("Mods (IPS / BPS / UPS, applied in name order; long-press to remove)");
+        modsTitle.setTextColor(android.graphics.Color.rgb(164, 175, 207));
+        modsTitle.setTextSize(13);
+        preferences.addView(modsTitle);
+        modList = new android.widget.LinearLayout(this);
+        modList.setOrientation(android.widget.LinearLayout.VERTICAL);
+        preferences.addView(modList);
+        refreshMods();
+        android.widget.Button addMod = new android.widget.Button(this);
+        addMod.setText("Add mod");
+        addMod.setAllCaps(false);
+        addMod.setOnClickListener(view -> {
+            android.content.Intent intent =
+                new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+            intent.setType("*/*");
+            startActivityForResult(intent, PICK_MOD);
+        });
+        preferences.addView(addMod);
+
+        android.widget.Button button = new android.widget.Button(this);
+        button.setText("Copy diagnostics");
+        button.setOnClickListener(view -> copyDiagnostics());
+        preferences.addView(button);
+    }
+
+    private void styleOption(android.widget.CompoundButton option) {
+        option.setTextColor(android.graphics.Color.rgb(203, 212, 238));
+        option.setTextSize(14);
+        option.setMinHeight(Math.round(52 * getResources().getDisplayMetrics().density));
+    }
+
+    private File modsDir() { return new File(getFilesDir(), "mods"); }
+
+    private static boolean isModFile(String name) {
+        String lower = name.toLowerCase(Locale.US);
+        return lower.endsWith(".ips") || lower.endsWith(".bps") || lower.endsWith(".ups");
+    }
+
+    private List<String> enabledMods() {
+        List<String> on = new ArrayList<>();
+        File file = new File(modsDir(), "enabled.txt");
+        if (!file.isFile()) return on;
+        try {
+            for (String line : Files.readAllLines(file.toPath(), StandardCharsets.UTF_8)) {
+                line = line.trim();
+                if (!line.isEmpty() && !line.startsWith("#")) on.add(line);
+            }
+        } catch (IOException ignored) {
+        }
+        return on;
+    }
+
+    private void saveEnabledMods(List<String> on) {
+        StringBuilder text = new StringBuilder("# Mods ticked in the launcher, applied in name order.\n");
+        for (String name : on) text.append(name).append('\n');
+        try {
+            modsDir().mkdirs();
+            Files.write(new File(modsDir(), "enabled.txt").toPath(),
+                text.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (IOException error) {
+            android.widget.Toast.makeText(this, "Could not save mods: " + error.getMessage(),
+                android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void refreshMods() {
+        if (modList == null) return;
+        modList.removeAllViews();
+        String[] names = modsDir().list((dir, name) -> isModFile(name));
+        if (names == null || names.length == 0) {
+            android.widget.TextView none = new android.widget.TextView(this);
+            none.setText("No mods installed.");
+            none.setTextColor(android.graphics.Color.rgb(132, 143, 173));
+            modList.addView(none);
+            return;
+        }
+        Arrays.sort(names);
+        final List<String> on = enabledMods();
+        for (String name : names) {
+            android.widget.CheckBox box = new android.widget.CheckBox(this);
+            box.setText(name);
+            styleOption(box);
+            box.setChecked(on.contains(name));
+            box.setOnCheckedChangeListener((view, checked) -> {
+                List<String> now = enabledMods();
+                now.remove(name);
+                if (checked) now.add(name);
+                saveEnabledMods(now);
+            });
+            box.setOnLongClickListener(view -> {
+                new AlertDialog.Builder(this)
+                    .setTitle("Remove mod?")
+                    .setMessage(name)
+                    .setPositiveButton("Remove", (dialog, which) -> {
+                        new File(modsDir(), name).delete();
+                        List<String> now = enabledMods();
+                        now.remove(name);
+                        saveEnabledMods(now);
+                        refreshMods();
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+                return true;
+            });
+            modList.addView(box);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
+        if (requestCode != PICK_MOD) {
+            super.onActivityResult(requestCode, resultCode, data);
+            return;
+        }
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        try {
+            importMod(data.getData());
+            refreshMods();
+        } catch (IOException error) {
+            new AlertDialog.Builder(this)
+                .setTitle("Mod not added")
+                .setMessage(error.getMessage())
+                .setPositiveButton("OK", null)
+                .show();
+        }
+    }
+
+    private void importMod(android.net.Uri uri) throws IOException {
+        String name = null;
+        try (android.database.Cursor cursor = getContentResolver().query(uri,
+                new String[] {android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) name = cursor.getString(0);
+        }
+        // Keep only a plain file name; the native side reads mods/<name>.
+        if (name != null) name = name.substring(name.lastIndexOf('/') + 1).trim();
+        if (name == null || name.isEmpty() || name.startsWith(".") || !isModFile(name))
+            throw new IOException("Choose an .ips, .bps or .ups patch file.");
+        File dir = modsDir();
+        if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("Could not create the mods folder.");
+        File temporary = File.createTempFile("mod-", ".tmp", dir);
+        long total = 0;
+        try (InputStream input = getContentResolver().openInputStream(uri);
+             FileOutputStream output = new FileOutputStream(temporary)) {
+            if (input == null) throw new IOException("Android could not open " + name + ".");
+            byte[] buffer = new byte[65536];
+            int read;
+            while ((read = input.read(buffer)) >= 0) {
+                total += read;
+                if (total > MAX_MOD_BYTES) throw new IOException("Mods must be 16 MiB or smaller.");
+                output.write(buffer, 0, read);
+            }
+        } catch (IOException error) {
+            temporary.delete();
+            throw error;
+        }
+        Files.move(temporary.toPath(), new File(dir, name).toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        List<String> on = enabledMods();
+        if (!on.contains(name)) on.add(name);  // a newly added mod starts ticked
+        saveEnabledMods(on);
+    }
+
+    /** One value from config.ini, or "" when it is absent. */
+    private String iniValue(String section, String key) {
+        File file = new File(getFilesDir(), "config.ini");
+        if (!file.isFile()) return "";
+        try {
+            boolean in = false;
+            for (String line : Files.readAllLines(file.toPath(), StandardCharsets.UTF_8)) {
+                line = line.trim();
+                if (line.startsWith("[")) { in = line.equalsIgnoreCase("[" + section + "]"); continue; }
+                int eq = line.indexOf('=');
+                if (in && eq > 0 && line.substring(0, eq).trim().equalsIgnoreCase(key))
+                    return line.substring(eq + 1).trim();
+            }
+        } catch (IOException ignored) {
+        }
+        return "";
+    }
+
+    /** Rewrites one key of config.ini, keeping every other line. */
+    private void setIniValue(String section, String key, String value) {
+        File file = new File(getFilesDir(), "config.ini");
+        List<String> lines = new ArrayList<>();
+        try {
+            if (file.isFile()) lines.addAll(Files.readAllLines(file.toPath(), StandardCharsets.UTF_8));
+            int start = -1, end = lines.size();
+            for (int i = 0; i < lines.size(); ++i) {
+                String line = lines.get(i).trim();
+                if (!line.startsWith("[")) continue;
+                if (start >= 0) { end = i; break; }
+                if (line.equalsIgnoreCase("[" + section + "]")) start = i;
+            }
+            String entry = key + " = " + value;
+            if (start < 0) {
+                lines.add("[" + section + "]");
+                lines.add(entry);
+            } else {
+                boolean replaced = false;
+                for (int i = start + 1; i < end; ++i) {
+                    String line = lines.get(i).trim();
+                    int eq = line.indexOf('=');
+                    if (eq > 0 && line.substring(0, eq).trim().equalsIgnoreCase(key)) {
+                        lines.set(i, entry);
+                        replaced = true;
+                    }
+                }
+                if (!replaced) lines.add(start + 1, entry);
+            }
+            File temporary = File.createTempFile("config-", ".tmp", getFilesDir());
+            Files.write(temporary.toPath(), (String.join("\n", lines) + "\n")
+                .getBytes(StandardCharsets.UTF_8));
+            Files.move(temporary.toPath(), file.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException error) {
+            android.widget.Toast.makeText(this, "Could not save setting: " + error.getMessage(),
+                android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void copyDiagnostics() {
+        String text = "MOTHER 3 | " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL
+            + " | Android " + android.os.Build.VERSION.RELEASE + "\n";
+        try {
+            text += "App " + getPackageManager().getPackageInfo(getPackageName(), 0).versionName + "\n";
+            text += readTail(new File(getFilesDir(), "android-runtime.log"), 12000);
+        } catch (Exception error) {
+            text += "No startup log available: " + error.getMessage();
+        }
+        android.content.ClipboardManager clipboard = (android.content.ClipboardManager)
+            getSystemService(CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("MOTHER 3 diagnostics", text));
+        android.widget.Toast.makeText(this, "Diagnostics copied", android.widget.Toast.LENGTH_SHORT).show();
+    }
+
+    private static String readTail(File file, int maxBytes) throws IOException {
+        long length = file.length();
+        int count = (int)Math.min(length, maxBytes);
+        byte[] data = new byte[count];
+        try (FileInputStream input = new FileInputStream(file)) {
+            long skip = Math.max(0L, length - count);
+            while (skip > 0) {
+                long n = input.skip(skip);
+                if (n <= 0) break;
+                skip -= n;
+            }
+            int off = 0;
+            while (off < data.length) {
+                int n = input.read(data, off, data.length - off);
+                if (n < 0) break;
+                off += n;
+            }
+        }
+        return new String(data, StandardCharsets.UTF_8);
+    }
+
+    private static String lastLines(String text, int maxLines) {
+        String[] lines = text.split("\\r?\\n");
+        int start = Math.max(0, lines.length - maxLines);
+        StringBuilder out = new StringBuilder();
+        for (int i = start; i < lines.length; ++i) {
+            if (lines[i].isEmpty()) continue;
+            out.append(lines[i]).append('\n');
+        }
+        return out.toString();
+    }
+}

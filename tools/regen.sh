@@ -4,7 +4,7 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 rom="${1:-$root/roms/mother3_en_v13.gba}"
 bios="${2:-$root/gbarecomp/bios/gba_bios.bin}"
-tool="$root/build/gbarecomp_build/gba_recompile"
+tool="${GBA_RECOMPILE:-$root/build/gbarecomp_build/gba_recompile}"
 if [ ! -x "$tool" ]; then
   echo "Build the generator first: cmake --build build --target gba_recompile" >&2
   exit 1

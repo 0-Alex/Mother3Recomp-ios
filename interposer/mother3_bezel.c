@@ -54,8 +54,9 @@ static int load_bezel(SDL_Renderer *r) {
     char *slash = strrchr(path, '\\');
     if (!slash) return 0;
     *slash = 0;
-    if (strlen(path) + sizeof("\\assets\\img\\bezel_master_1080p.raw") > sizeof(path)) return 0;
-    strcat(path, "\\assets\\img\\bezel_master_1080p.raw");
+    /* Composed from the player's ROM at boot (src/m3_bezel.cpp); no artwork ships. */
+    if (strlen(path) + sizeof("\\bezel_cache\\m3_bezel_1080p.raw") > sizeof(path)) return 0;
+    strcat(path, "\\bezel_cache\\m3_bezel_1080p.raw");
     FILE *file = fopen(path, "rb");
     if (!file) return 0;
     const size_t bytes = 1920u * 1080u * 4u;
@@ -89,7 +90,8 @@ static int SDLCALL render_copy(SDL_Renderer *r, SDL_Texture *t,
     api.SDL_RenderSetLogicalSize(r, 0, 0);
     api.SDL_RenderSetViewport(r, NULL);
     api.SDL_RenderSetClipRect(r, NULL);
-    SDL_Rect game = {w * 289 / 1920, h * 164 / 1080, w * 1336 / 1920, h * 761 / 1080};
+    /* 3:2 at 6x inside the 1920x1080 bezel; matches m3bezel::kGame*. */
+    SDL_Rect game = {w * 240 / 1920, h * 60 / 1080, w * 1440 / 1920, h * 960 / 1080};
     int result = api.SDL_RenderCopy(r, t, src, &game);
     /* Draw beneath the runtime menu, never over it at RenderPresent. */
     api.SDL_RenderCopy(r, bezel_texture, NULL, NULL);

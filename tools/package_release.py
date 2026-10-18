@@ -48,10 +48,8 @@ shutil.copytree(a.binary.parent / "assets/fonts", stage / "assets/fonts")
 images = stage / "assets/img"
 images.mkdir(parents=True)
 for image in (ROOT / "assets/img").iterdir():
-    if image.suffix == ".tga" or image.name in ("bezel_master_1080p.png", "bezel_master_1080p.raw", "flags.png", "icon.png"):
+    if image.suffix == ".tga" or image.name in ("flags.png", "icon.png"):
         shutil.copy2(image, images / image.name)
-if windows and not (images / "bezel_master_1080p.raw").is_file():
-    raise SystemExit("Missing bezel RGBA data; generate it before packaging")
 config = (ROOT / "game.toml").read_text(encoding="utf-8")
 for section in ("bios", "rom"):
     config = re.sub(r'(\[' + section + r'\]\s*\n)path = "[^"\n]*"\n', r'\1', config)

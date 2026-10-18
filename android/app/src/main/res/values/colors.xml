@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Grass behind the family on the naming screen. -->
+    <color name="ic_launcher_background">#84F7BD</color>
+</resources>
