@@ -125,6 +125,20 @@ Input map_button(Uint8 b) {
     }
 }
 
+// The left stick drives menus like the D-pad: one step per push past the threshold.
+struct Stick {
+    bool held[2] = {false, false};
+    Input input(const SDL_ControllerAxisEvent& a) {
+        if (a.axis != SDL_CONTROLLER_AXIS_LEFTX && a.axis != SDL_CONTROLLER_AXIS_LEFTY) return Input::None;
+        const int k = a.axis == SDL_CONTROLLER_AXIS_LEFTY;
+        if (std::abs(a.value) < 12000) { held[k] = false; return Input::None; }
+        if (held[k] || std::abs(a.value) < 20000) return Input::None;
+        held[k] = true;
+        if (k) return a.value < 0 ? Input::Up : Input::Down;
+        return a.value < 0 ? Input::Left : Input::Right;
+    }
+};
+
 struct Step { Point at; Dir dir; };
 
 // Moves the leader 1px per frame toward the next route point.
@@ -277,6 +291,7 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
     }
 
     Walker walker;
+    Stick stick;
     int row = 0, column = 0, frame = 0;
     bool capturing = false, running = true;
     Result result = Result::Quit;
@@ -329,6 +344,7 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             Input in = Input::None;
             if (e.type == SDL_KEYDOWN && !e.key.repeat) in = map_key(e.key.keysym.sym);
             else if (e.type == SDL_CONTROLLERBUTTONDOWN) in = map_button(e.cbutton.button);
+            else if (e.type == SDL_CONTROLLERAXISMOTION) in = stick.input(e.caxis);
             if (in == Input::None) continue;
 
             switch (page) {
@@ -429,7 +445,11 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
                 ui.text(m3settings::kButtonLabels[i], kLabelX, y);
                 const bool cap = capturing && i == row;
                 const std::string key = cap && column == 0 ? "Press a key..." : st.keys[i];
-                const std::string pad = cap && column == 1 ? "Press a button..." : pads.label(i);
+                // Movement always follows the left stick (the runtime reads it directly);
+                // the D-pad bind is the rebindable second input.
+                static const char* const kStick[] = {"LS Up", "LS Down", "LS Left", "LS Right"};
+                std::string pad = cap && column == 1 ? "Press a button..." : pads.label(i);
+                if (i < 4 && !(cap && column == 1)) pad = std::string(kStick[i]) + ", " + pad;
                 ui.text(key, key_x, y, i == row && column == 0 ? kHot : kInk);
                 ui.text(pads.available() ? pad : "-", pad_x, y, i == row && column == 1 ? kHot : kInk);
             }
