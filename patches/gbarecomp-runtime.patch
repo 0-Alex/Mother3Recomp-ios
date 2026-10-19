@@ -10388,3 +10388,30 @@ diff --git a/src/runtime/runtime.cpp b/src/runtime/runtime.cpp
                  // Framedump (capture runs only) is attributed to present_us.
                  if (framedump_dir && frame >= framedump_start &&
                      (frame - framedump_start) % framedump_stride == 0 &&
+diff --git a/platform/android/java/org/gbarecomp/GbaSetupActivity.java b/platform/android/java/org/gbarecomp/GbaSetupActivity.java
+--- a/platform/android/java/org/gbarecomp/GbaSetupActivity.java
++++ b/platform/android/java/org/gbarecomp/GbaSetupActivity.java
+@@ -257,10 +257,13 @@
+         privacy.setGravity(Gravity.CENTER);
+         root.addView(privacy, margins(-1, -2, 0, 0, 0, 0));
+ 
++        // The options and PLAY scroll with the file cards: games add their own
++        // options here, and a fixed footer that tall left no room for the cards
++        // on short landscape phones (about 410 dp high).
+         LinearLayout footer = new LinearLayout(this);
+         footer.setOrientation(vertical ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+         footer.setGravity(Gravity.CENTER);
+-        footer.setPadding(dp(vertical ? 20 : 36), dp(8), dp(vertical ? 20 : 36), dp(18));
++        footer.setPadding(0, dp(8), 0, dp(18));
+ 
+         LinearLayout preferences = new LinearLayout(this);
+         preferences.setOrientation(LinearLayout.VERTICAL);
+@@ -320,7 +323,7 @@
+         playButton.setOnClickListener(view -> launchGame());
+         footer.addView(playButton, margins(vertical ? -1 : dp(360), dp(58), 0, 0, 0, 0));
+ 
+-        page.addView(footer, new LinearLayout.LayoutParams(
++        root.addView(footer, new LinearLayout.LayoutParams(
+             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+         return page;
+     }
