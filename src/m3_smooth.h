@@ -6,6 +6,7 @@
 
 namespace m3smooth {
 
-void enable(bool on);  // installs the engine hooks; call before run_game()
+// 0 off, 1 on displays of 100 Hz or more, 2 always (for displays that misreport).
+void enable(int level);  // installs the engine hooks; call before run_game()
 
 }  // namespace m3smooth

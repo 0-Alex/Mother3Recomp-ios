@@ -41,7 +41,10 @@ MOTHER 3's own launcher opens: the party walks around outside Tazmily while you 
   volume, **Button prompts**, **Frame rate**, and **Change game files** to pick a different ROM or BIOS.
 - **Frame rate 120 (smooth):** on a 120 Hz (or faster) screen, an in-between frame is drawn between every two of
   the game's frames, so scrolling and walking move in half steps. The game itself still runs at its normal speed.
-  On a 60 Hz screen it has no effect, and the launcher says so.
+  On a 60 Hz screen it has no effect, and the launcher says so. If your screen is 120 Hz or faster but the game
+  still shows 60 fps, choose **120 (always)**, which skips the screen check.
+- **Japanese (untranslated):** pick the Japanese ROM and answer **Yes** to play it in Japanese. The launcher needs a
+  translated ROM to draw itself, so the game starts directly; run with `--classic-launcher` to pick other files.
 - **Other translations** built on the English v1.3 layout (such as Spanish) open the launcher too. A ROM the launcher
   can't draw from starts the game directly, using the settings from the last time you used the launcher.
 - **Controls:** pick a GBA button, then press the new key or controller button; whichever you press is the one

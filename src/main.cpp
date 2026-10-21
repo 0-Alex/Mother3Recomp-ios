@@ -228,7 +228,7 @@ int mother3_main(int argc, char** argv) {
         const auto slash = dir.find_last_of("/\\");
         dir = slash == std::string::npos ? "." : dir.substr(0, slash);
         const char* force = std::getenv("M3_SMOOTH");
-        m3smooth::enable(force ? *force == '1' : m3settings::load(dir).smooth);
+        m3smooth::enable(force ? std::atoi(force) : m3settings::load(dir).smooth);
     }
 #if defined(GBAGAME_RECOMP_UI)
     if (game_launcher_preboot(args, opts)) return 0;

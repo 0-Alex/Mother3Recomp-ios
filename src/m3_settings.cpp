@@ -114,7 +114,7 @@ Settings load(const std::string& dir) {
     s.volume = to_int(cfg, "volume", s.volume, 0, 100);
     s.prompt_style = to_int(cfg, "m3_button_prompts", s.prompt_style, 0, 4);
     s.widescreen = to_int(cfg, "m3_widescreen", 0, 0, 1) != 0;
-    s.smooth = to_int(cfg, "m3_smooth_120", 0, 0, 1) != 0;
+    s.smooth = to_int(cfg, "m3_smooth_120", 0, 0, 2);
     if (auto it = cfg.find("screen"); it != cfg.end())
         for (const char* name : kScreens)
             if (lower(it->second) == name) s.screen = name;
@@ -134,7 +134,7 @@ void save(const std::string& dir, const Settings& s) {
                    {"volume", std::to_string(s.volume)},
                    {"m3_button_prompts", std::to_string(s.prompt_style)},
                    {"m3_widescreen", s.widescreen ? "1" : "0"},
-                   {"m3_smooth_120", s.smooth ? "1" : "0"}});
+                   {"m3_smooth_120", std::to_string(s.smooth)}});
     std::vector<std::pair<std::string, std::string>> keys;
     for (int i = 0; i < kButtonCount; ++i) keys.emplace_back(kButtonKeys[i], s.keys[i]);
     write_section(dir + "/keybinds.ini", "player1", keys);
