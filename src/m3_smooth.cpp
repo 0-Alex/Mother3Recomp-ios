@@ -69,20 +69,36 @@ struct State {
     // Display check, refreshed every couple of seconds (the window can move).
     bool fast_display = false;
     int display_check_in = 0;
+    int display_hz = -1;
+    bool always = false;  // Frame rate "120 (always)": skip the display check
     std::vector<std::uint32_t> depth;
 };
 State g;
 
+// The game's own window (the launcher's is gone by now), so the refresh rate
+// is read from the display it is actually on, not whichever window has focus.
+SDL_Window* game_window() {
+    for (Uint32 id = 1; id < 64; ++id)
+        if (SDL_Window* w = SDL_GetWindowFromID(id); w && !(SDL_GetWindowFlags(w) & SDL_WINDOW_HIDDEN)) return w;
+    return SDL_GetKeyboardFocus();
+}
+
 bool display_is_fast() {
     if (--g.display_check_in > 0) return g.fast_display;
     g.display_check_in = 120;
-    if (const char* force = std::getenv("M3_SMOOTH_FORCE"); force && *force == '1') return g.fast_display = true;
-    SDL_Window* win = SDL_GetKeyboardFocus();
-    if (!win) win = SDL_GetMouseFocus();
+    if (const char* force = std::getenv("M3_SMOOTH_FORCE"); g.always || (force && *force == '1'))
+        return g.fast_display = true;
+    SDL_Window* win = game_window();
     const int index = win ? SDL_GetWindowDisplayIndex(win) : 0;
     SDL_DisplayMode mode{};
-    g.fast_display = SDL_GetCurrentDisplayMode(index < 0 ? 0 : index, &mode) == 0 && mode.refresh_rate >= 100;
-    return g.fast_display;
+    const int hz = SDL_GetCurrentDisplayMode(index < 0 ? 0 : index, &mode) == 0 ? mode.refresh_rate : 0;
+    const bool fast = hz >= 100 || hz == 0;  // 0 = the driver doesn't say; the player chose 120
+    if (fast != g.fast_display || g.display_hz != hz) {
+        std::fprintf(stderr, "m3-smooth: display %d reports %d Hz -> 120 fps %s\n", index, hz, fast ? "on" : "off");
+        std::fflush(stderr);
+    }
+    g.display_hz = hz;
+    return g.fast_display = fast;
 }
 
 // Test hook: M3_SMOOTH_DUMP=dir saves in-between/real frame pairs (both at 2x)
@@ -218,10 +234,12 @@ int interpolate(const gba::GbaPpu* ppu, const std::uint8_t* rgb, std::uint32_t w
 
 }  // namespace
 
-void enable(bool on) {
+void enable(int level) {
+    const bool on = level > 0;
     gba::g_ppu_record_motion = on ? 1 : 0;
     gba::g_present_interpolator = on ? &interpolate : nullptr;
     g = State{};
+    g.always = level == 2;
 }
 
 }  // namespace m3smooth

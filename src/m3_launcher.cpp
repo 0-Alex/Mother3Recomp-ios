@@ -371,7 +371,7 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
             case 5: st.volume = std::clamp(st.volume + delta * 10, 0, 100); break;
             case 6: st.prompt_style = (st.prompt_style + 5 + delta) % 5; break;
             case 7: st.widescreen = !st.widescreen; break;
-            case 8: st.smooth = !st.smooth; break;
+            case 8: st.smooth = (st.smooth + 3 + delta) % 3; break;
         }
     };
 
@@ -501,7 +501,8 @@ Result run(const m3assets::Rom& rom, m3settings::Settings& st, const std::string
                 kFlavors[st.flavor], kDisplayModes[st.fullscreen], std::to_string(st.scale) + "x",
                 st.sharp_filter ? "Sharp" : "Pixel", "", std::to_string(st.volume) + "%",
                 kPromptStyles[st.prompt_style], st.widescreen ? "On (16:9)" : "Off",
-                !st.smooth ? "60" : display_hz(win) >= 100 ? "120 (smooth)" : "120 (needs 120 Hz)", ""};
+                st.smooth == 2 ? "120 (always)" : !st.smooth ? "60"
+                : display_hz(win) >= 100 || display_hz(win) == 0 ? "120 (smooth)" : "120 (needs 120 Hz)", ""};
             const char* labels[kSettingRows] = {"Window flavor", "Display", "Window size", "Scaling",
                                                 "Screen colors", "Volume", "Button prompts", "Widescreen",
                                                 "Frame rate", "Change game files (ROM, BIOS)"};
