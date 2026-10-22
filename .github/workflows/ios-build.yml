@@ -28,7 +28,14 @@ jobs:
             -DGBARECOMP_SELFHEAL_RECOMPILE_DEFAULT=OFF
 
       - name: Build
-        run: cmake --build build-ios --target Mother3Recomp -j3
+        run: |
+          set -o pipefail
+          cmake --build build-ios --target Mother3Recomp -j3 2>&1 | tee build.log
+
+      - name: Show build errors
+        if: failure()
+        run: |
+          grep -n -B2 -A12 -E "FAILED:|error:|Undefined symbols|ld: " build.log | head -150 || true
 
       - name: Package unsigned .ipa
         run: |
