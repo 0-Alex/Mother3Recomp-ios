@@ -102,13 +102,22 @@ target_include_directories(${MOTHER3_TARGET} PRIVATE
     "${GBARECOMP_ROOT}/src/runtime"
     "${GBARECOMP_ROOT}/src/debug")
 
-target_link_libraries(${MOTHER3_TARGET} PRIVATE
-    "-Wl,--start-group"
-    gbarecomp_runtime
-    gbarecomp_debug
-    gbarecomp_gba
-    gbarecomp_armv4t
-    "-Wl,--end-group")
+if(APPLE OR MSVC)
+    # Apple's ld64 rejects --start-group and resolves archive cycles itself.
+    target_link_libraries(${MOTHER3_TARGET} PRIVATE
+        gbarecomp_runtime
+        gbarecomp_debug
+        gbarecomp_gba
+        gbarecomp_armv4t)
+else()
+    target_link_libraries(${MOTHER3_TARGET} PRIVATE
+        "-Wl,--start-group"
+        gbarecomp_runtime
+        gbarecomp_debug
+        gbarecomp_gba
+        gbarecomp_armv4t
+        "-Wl,--end-group")
+endif()
 
 target_compile_definitions(${MOTHER3_TARGET} PRIVATE
     GBARECOMP_DEFAULT_DEBUG_PORT=19893
