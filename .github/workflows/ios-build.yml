@@ -1,0 +1,60 @@
+name: iOS build (unsigned ipa)
+on: workflow_dispatch
+
+jobs:
+  ios:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: brew install cmake ninja python3
+
+      - name: Prepare pinned source (gbarecomp + recomp-ui)
+        run: python3 tools/setup_deps.py
+
+      - name: Patch gbarecomp for iOS
+        run: git -C gbarecomp apply ../patches/gbarecomp-ios.patch
+
+      - name: Configure (iphoneos, arm64)
+        run: |
+          cmake -S . -B build-ios -G Ninja \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+            -DGBARECOMP_SELFHEAL_RECOMPILE_DEFAULT=OFF
+
+      - name: Build
+        run: cmake --build build-ios --target Mother3Recomp -j3
+
+      - name: Package unsigned .ipa
+        run: |
+          APP=$(find build-ios -maxdepth 2 -name 'Mother3Recomp.app' -type d | head -1)
+          test -n "$APP" || { echo "No .app produced"; find build-ios -maxdepth 2 | head -50; exit 1; }
+          echo "Bundle: $APP"; ls -la "$APP"
+          cp android/game_android_mother3en.toml "$APP/game_ios_mother3en.toml"
+          lipo -info "$APP/Mother3Recomp" || true
+          mkdir -p ipa/Payload
+          cp -R "$APP" ipa/Payload/
+          (cd ipa && zip -qry ../Mother3Recomp-unsigned.ipa Payload)
+          ls -lh Mother3Recomp-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mother3Recomp-unsigned-ipa
+          path: Mother3Recomp-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Upload CMake logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmake-logs
+          path: |
+            build-ios/CMakeFiles/CMakeConfigureLog.yaml
+            build-ios/CMakeFiles/CMakeError.log
+            build-ios/CMakeFiles/CMakeOutput.log
+          if-no-files-found: ignore

@@ -29,6 +29,9 @@
 #elif defined(__linux__)
 #include <sys/resource.h>
 #endif
+#if defined(M3_IOS)
+#include "ios_platform.h"
+#endif
 
 #if defined(GBAGAME_RECOMP_UI)
 #include "game_launcher_boot.h"
@@ -221,6 +224,17 @@ int mother3_main(int argc, char** argv) {
     // shortcut: rewind/fast-forward stay desktop-only until rewind memory is measured on phones.
     opts.expose_assist_tools = false;
     opts.assist_tools_enabled_by_default = false;
+#elif defined(M3_IOS)
+    // App Documents becomes the working directory (see ios_platform.mm). The
+    // launcher/setup UI is not ported yet, so this follows the Android layout.
+    m3_ios_prepare_process(args);
+    if (m3settings::load(".").widescreen) args.insert(args.begin() + 1, {"--view-width", "284"});
+    opts.orientation = gbarecomp::RunOptions::Orientation::Landscape;
+    opts.resume_suspend_state_on_launch = true;
+    opts.ui_touch_friendly = true;
+    opts.touch_pad_default = 1;
+    opts.expose_assist_tools = false;
+    opts.assist_tools_enabled_by_default = false;
 #else
     if (!m3_launcher_preboot(args)) return 0;
     {
@@ -277,6 +291,9 @@ extern "C" int SDL_main(int argc, char** argv) {
     }
     return result;
 }
+#elif defined(M3_IOS)
+// ios_platform.mm supplies main(), which hands this to SDL_UIKitRunApp (UIKit main thread).
+extern "C" int SDL_main(int argc, char** argv) { return mother3_main(argc, argv); }
 #else
 int main(int argc, char** argv) { return mother3_main(argc, argv); }
 #endif

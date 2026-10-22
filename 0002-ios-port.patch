@@ -1,0 +1,274 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 92ce1d7..971d47e 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -25,6 +25,9 @@ endif()
+ if(ANDROID)
+     set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
+ endif()
++if(IOS)
++    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ios.cmake")
++endif()
+ add_subdirectory("${GBARECOMP_ROOT}" gbarecomp_build EXCLUDE_FROM_ALL)
+ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/generated/recompiled.cpp")
+     message(FATAL_ERROR
+@@ -60,6 +63,15 @@ if(ANDROID)
+ else()
+     set(MOTHER3_TARGET Mother3Recomp)
+     add_executable(Mother3Recomp ${MOTHER3_SOURCES})
++    if(IOS)
++        target_sources(Mother3Recomp PRIVATE src/ios_platform.mm)
++        set_source_files_properties(src/ios_platform.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
++        target_compile_definitions(Mother3Recomp PRIVATE M3_IOS=1)
++        target_link_libraries(Mother3Recomp PRIVATE ${M3_IOS_LINK_LIBS})
++        set_target_properties(Mother3Recomp PROPERTIES
++            MACOSX_BUNDLE TRUE
++            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist.in")
++    endif()
+ endif()
+ 
+ # A native game corpus without the recompiled BIOS runs the IRQ/SWI handlers on
+diff --git a/cmake/ios.cmake b/cmake/ios.cmake
+new file mode 100644
+index 0000000..b6b430d
+--- /dev/null
++++ b/cmake/ios.cmake
+@@ -0,0 +1,43 @@
++# iOS support for Mother3Recomp. Included from CMakeLists.txt when IOS is set
++# (configure with -DCMAKE_SYSTEM_NAME=iOS). Builds SDL2 from source as a static
++# library and exposes it as SDL2::SDL2, the same target the Android shell gives
++# gbarecomp, so gbarecomp's existing "parent-provided SDL2" path is reused.
++enable_language(OBJCXX)
++include(FetchContent)
++
++# SDL2's own CMake files declare an old minimum version; CMake 4 rejects that
++# unless told otherwise. Ignored by older CMake versions.
++set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
++
++set(SDL_STATIC ON  CACHE BOOL "" FORCE)
++set(SDL_SHARED OFF CACHE BOOL "" FORCE)
++set(SDL_TEST   OFF CACHE BOOL "" FORCE)
++set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
++
++FetchContent_Declare(SDL2
++    GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
++    GIT_TAG        release-2.30.9
++    GIT_SHALLOW    TRUE)
++FetchContent_MakeAvailable(SDL2)
++
++if(NOT TARGET SDL2::SDL2)
++    add_library(SDL2::SDL2 INTERFACE IMPORTED GLOBAL)
++    set_target_properties(SDL2::SDL2 PROPERTIES
++        INTERFACE_LINK_LIBRARIES SDL2-static
++        INTERFACE_INCLUDE_DIRECTORIES "${sdl2_SOURCE_DIR}/include")
++endif()
++
++# No GL launcher / ImGui runtime UI on iOS yet (they are desktop GL or Android
++# GLES only); the game runs headless-of-UI like the Android --no-launcher path.
++set(GBARECOMP_RUNTIME_UI_ROOT "" CACHE PATH "" FORCE)
++set(GBAGAME_RECOMP_UI OFF CACHE BOOL "" FORCE)
++
++# Frameworks SDL2 and the game need on iOS. Listed explicitly so the link does
++# not depend on SDL's static-library dependency propagation.
++set(M3_IOS_LINK_LIBS
++    "-framework UIKit" "-framework Foundation" "-framework AudioToolbox"
++    "-framework AVFoundation" "-framework CoreAudio" "-framework CoreGraphics"
++    "-framework CoreHaptics" "-framework CoreMotion" "-framework CoreBluetooth"
++    "-framework GameController" "-framework Metal" "-framework OpenGLES"
++    "-framework QuartzCore" "-framework CoreVideo" "-framework ImageIO"
++    "-framework CoreFoundation" "-liconv")
+diff --git a/ios/Info.plist.in b/ios/Info.plist.in
+new file mode 100644
+index 0000000..94ec71f
+--- /dev/null
++++ b/ios/Info.plist.in
+@@ -0,0 +1,31 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++    <key>CFBundleDevelopmentRegion</key><string>en</string>
++    <key>CFBundleExecutable</key><string>Mother3Recomp</string>
++    <key>CFBundleIdentifier</key><string>io.github.mother3recomp.ios</string>
++    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
++    <key>CFBundleName</key><string>Mother3Recomp</string>
++    <key>CFBundleDisplayName</key><string>MOTHER 3</string>
++    <key>CFBundlePackageType</key><string>APPL</string>
++    <key>CFBundleShortVersionString</key><string>1.0</string>
++    <key>CFBundleVersion</key><string>1</string>
++    <key>CFBundleSupportedPlatforms</key><array><string>iPhoneOS</string></array>
++    <key>MinimumOSVersion</key><string>15.0</string>
++    <key>UIDeviceFamily</key><array><integer>1</integer></array>
++    <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>
++    <key>UILaunchScreen</key><dict/>
++    <key>UIRequiresFullScreen</key><true/>
++    <key>UIStatusBarHidden</key><true/>
++    <key>UIViewControllerBasedStatusBarAppearance</key><false/>
++    <key>UISupportedInterfaceOrientations</key>
++    <array>
++        <string>UIInterfaceOrientationLandscapeLeft</string>
++        <string>UIInterfaceOrientationLandscapeRight</string>
++    </array>
++    <key>UIApplicationSupportsIndirectInputEvents</key><true/>
++    <key>UIFileSharingEnabled</key><true/>
++    <key>LSSupportsOpeningDocumentsInPlace</key><true/>
++</dict>
++</plist>
+diff --git a/patches/gbarecomp-ios.patch b/patches/gbarecomp-ios.patch
+new file mode 100644
+index 0000000..763d92e
+--- /dev/null
++++ b/patches/gbarecomp-ios.patch
+@@ -0,0 +1,36 @@
++--- a/CMakeLists.txt
+++++ b/CMakeLists.txt
++@@ -95,7 +95,7 @@
++     "Build the first-divergence co-simulation oracle (state hash + TCP park/step)"
++     OFF)
++ 
++-if(ANDROID AND TARGET SDL2::SDL2)
+++if((ANDROID OR IOS) AND TARGET SDL2::SDL2)
++     # Android applications provide SDL from the parent Gradle/CMake project.
++     # Reusing that target keeps SDLActivity's libSDL2.so as the single backend.
++     set(GBARECOMP_SDL2_OK TRUE)
++--- a/src/runtime/overlay_compile.cpp
+++++ b/src/runtime/overlay_compile.cpp
++@@ -1,5 +1,8 @@
++ // overlay_compile.cpp — see overlay_compile.h.
++ 
+++#ifdef __APPLE__
+++#include <TargetConditionals.h>
+++#endif
++ #include "overlay_compile.h"
++ 
++ #include <cstdio>
++@@ -215,7 +218,13 @@
++ int run_process(const std::string& cmdline, const std::string& logpath,
++                 std::string*) {
++     std::string c = cmdline + " > \"" + logpath + "\" 2>&1";
+++#if defined(__APPLE__) && TARGET_OS_IPHONE
+++    // system() is unavailable in the iOS SDK; there is no compiler on-device anyway.
+++    (void)c;
+++    return -1;
+++#else
++     return std::system(c.c_str());
+++#endif
++ }
++ // POSIX mirror of the Win32 path above: dlopen/dlsym for
++ // LoadLibrary/GetProcAddress. Until this existed, every heal off Windows failed
+diff --git a/src/ios_platform.h b/src/ios_platform.h
+new file mode 100644
+index 0000000..63e030e
+--- /dev/null
++++ b/src/ios_platform.h
+@@ -0,0 +1,9 @@
++#pragma once
++#include <string>
++#include <vector>
++
++// iOS counterpart of gbarecomp::mobile_prepare_process (Android): makes the
++// app's Documents folder the working directory, creates bios/ roms/ saves/
++// mods/ there (visible in the Files app), installs the bundled game config,
++// redirects diagnostics to ios-runtime.log and disables on-device self-heal.
++bool m3_ios_prepare_process(std::vector<std::string>& args);
+diff --git a/src/ios_platform.mm b/src/ios_platform.mm
+new file mode 100644
+index 0000000..1ab5390
+--- /dev/null
++++ b/src/ios_platform.mm
+@@ -0,0 +1,53 @@
++#import <Foundation/Foundation.h>
++
++#include <unistd.h>
++
++#include <cstdio>
++#include <cstdlib>
++
++#include "ios_platform.h"
++
++bool m3_ios_prepare_process(std::vector<std::string>& args) {
++    @autoreleasepool {
++        NSArray<NSString*>* dirs = NSSearchPathForDirectoriesInDomains(
++            NSDocumentDirectory, NSUserDomainMask, YES);
++        if (dirs.count == 0) return false;
++        NSString* docs = dirs[0];
++        NSFileManager* fm = [NSFileManager defaultManager];
++        for (NSString* sub in @[ @"bios", @"roms", @"saves", @"mods", @"variants/mother3en" ]) {
++            [fm createDirectoryAtPath:[docs stringByAppendingPathComponent:sub]
++          withIntermediateDirectories:YES
++                           attributes:nil
++                                error:nil];
++        }
++        // The CI packaging step copies the runtime config into the .app root.
++        NSString* src = [[[NSBundle mainBundle] bundlePath]
++            stringByAppendingPathComponent:@"game_ios_mother3en.toml"];
++        NSString* dst = [docs stringByAppendingPathComponent:@"variants/mother3en/game.toml"];
++        [fm removeItemAtPath:dst error:nil];
++        [fm copyItemAtPath:src toPath:dst error:nil];
++        if (chdir([docs fileSystemRepresentation]) != 0) return false;
++    }
++    std::freopen("ios-runtime.log", "w", stderr);
++    std::fflush(stdout);
++    dup2(fileno(stderr), fileno(stdout));
++    std::setvbuf(stderr, nullptr, _IONBF, 0);
++    std::setvbuf(stdout, nullptr, _IONBF, 0);
++    // No compiler on the device: dispatch misses must not try an on-device rebuild.
++    setenv("GBARECOMP_SELFHEAL_RECOMPILE", "0", 0);
++    std::fprintf(stderr, "ios: working directory is the app Documents folder\n");
++    if (args.empty()) args.emplace_back("main");
++    args[0] = "./Mother3Recomp";
++    args.emplace_back("variants/mother3en/game.toml");
++    args.emplace_back("--no-launcher");
++    return true;
++}
++
++// Entry point. SDL2main is not linked, so hand SDL_main to SDL's UIKit app
++// delegate here (this is what SDL2main's main() does on iOS).
++extern "C" int SDL_UIKitRunApp(int argc, char* argv[], int (*mainFunction)(int, char*[]));
++extern "C" int SDL_main(int argc, char** argv);
++
++int main(int argc, char** argv) {
++    return SDL_UIKitRunApp(argc, argv, SDL_main);
++}
+diff --git a/src/main.cpp b/src/main.cpp
+index 50d843c..03c6b7a 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -29,6 +29,9 @@
+ #elif defined(__linux__)
+ #include <sys/resource.h>
+ #endif
++#if defined(M3_IOS)
++#include "ios_platform.h"
++#endif
+ 
+ #if defined(GBAGAME_RECOMP_UI)
+ #include "game_launcher_boot.h"
+@@ -221,6 +224,17 @@ int mother3_main(int argc, char** argv) {
+     // shortcut: rewind/fast-forward stay desktop-only until rewind memory is measured on phones.
+     opts.expose_assist_tools = false;
+     opts.assist_tools_enabled_by_default = false;
++#elif defined(M3_IOS)
++    // App Documents becomes the working directory (see ios_platform.mm). The
++    // launcher/setup UI is not ported yet, so this follows the Android layout.
++    m3_ios_prepare_process(args);
++    if (m3settings::load(".").widescreen) args.insert(args.begin() + 1, {"--view-width", "284"});
++    opts.orientation = gbarecomp::RunOptions::Orientation::Landscape;
++    opts.resume_suspend_state_on_launch = true;
++    opts.ui_touch_friendly = true;
++    opts.touch_pad_default = 1;
++    opts.expose_assist_tools = false;
++    opts.assist_tools_enabled_by_default = false;
+ #else
+     if (!m3_launcher_preboot(args)) return 0;
+     {
+@@ -277,6 +291,9 @@ extern "C" int SDL_main(int argc, char** argv) {
+     }
+     return result;
+ }
++#elif defined(M3_IOS)
++// ios_platform.mm supplies main(), which hands this to SDL_UIKitRunApp (UIKit main thread).
++extern "C" int SDL_main(int argc, char** argv) { return mother3_main(argc, argv); }
+ #else
+ int main(int argc, char** argv) { return mother3_main(argc, argv); }
+ #endif

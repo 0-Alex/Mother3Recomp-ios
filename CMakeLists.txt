@@ -25,6 +25,9 @@ endif()
 if(ANDROID)
     set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
 endif()
+if(IOS)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ios.cmake")
+endif()
 add_subdirectory("${GBARECOMP_ROOT}" gbarecomp_build EXCLUDE_FROM_ALL)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/generated/recompiled.cpp")
     message(FATAL_ERROR
@@ -60,6 +63,15 @@ if(ANDROID)
 else()
     set(MOTHER3_TARGET Mother3Recomp)
     add_executable(Mother3Recomp ${MOTHER3_SOURCES})
+    if(IOS)
+        target_sources(Mother3Recomp PRIVATE src/ios_platform.mm)
+        set_source_files_properties(src/ios_platform.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+        target_compile_definitions(Mother3Recomp PRIVATE M3_IOS=1)
+        target_link_libraries(Mother3Recomp PRIVATE ${M3_IOS_LINK_LIBS})
+        set_target_properties(Mother3Recomp PROPERTIES
+            MACOSX_BUNDLE TRUE
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist.in")
+    endif()
 endif()
 
 # A native game corpus without the recompiled BIOS runs the IRQ/SWI handlers on
