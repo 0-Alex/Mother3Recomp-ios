@@ -2,7 +2,9 @@
 # (configure with -DCMAKE_SYSTEM_NAME=iOS). Builds SDL2 from source as a static
 # library and exposes it as SDL2::SDL2, the same target the Android shell gives
 # gbarecomp, so gbarecomp's existing "parent-provided SDL2" path is reused.
-enable_language(OBJCXX)
+# Note: OBJCXX is deliberately NOT enabled. Enabling it makes CMake treat SDL's .m files
+# as Objective-C++ and pass them -std=gnu++20. src/ios_platform.mm is compiled
+# through the C++ driver with -x objective-c++ instead (see CMakeLists.txt).
 include(FetchContent)
 add_compile_options(-DGLES_SILENCE_DEPRECATION -Wno-deprecated-declarations)
 
