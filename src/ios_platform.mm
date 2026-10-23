@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 
+#include <sys/mman.h>
 #include <unistd.h>
 
 #include <cstdio>
@@ -48,6 +49,55 @@ bool m3_ios_prepare_process(std::vector<std::string>& args) {
     args.emplace_back("variants/mother3en/game.toml");
    
     return true;
+}
+
+// m3_call_on_stack(fn, arg, stack_top): call fn(arg) with sp = stack_top,
+// then return on the original stack (arm64 only; iOS devices are arm64).
+extern "C" void m3_call_on_stack(void (*fn)(void*), void* arg, void* stack_top);
+__asm__(
+    ".text\n"
+    ".globl _m3_call_on_stack\n"
+    ".p2align 2\n"
+    "_m3_call_on_stack:\n"
+    "    stp x29, x30, [sp, #-16]!\n"
+    "    mov x29, sp\n"
+    "    mov sp, x2\n"
+    "    mov x9, x0\n"
+    "    mov x0, x1\n"
+    "    blr x9\n"
+    "    mov sp, x29\n"
+    "    ldp x29, x30, [sp], #16\n"
+    "    ret\n");
+
+namespace {
+struct StackedCall {
+    int (*entry)(int, char**);
+    int argc;
+    char** argv;
+    int result;
+};
+void run_stacked(void* arg) {
+    auto* call = static_cast<StackedCall*>(arg);
+    call->result = call->entry(call->argc, call->argv);
+}
+}  // namespace
+
+int m3_ios_run_with_stack(int (*entry)(int, char**), int argc, char** argv) {
+    // Generated guest calls nest deeply (desktop and Android reserve 256 MiB).
+    constexpr size_t kStackBytes = 256u * 1024u * 1024u;
+    constexpr size_t kGuardBytes = 64u * 1024u;
+    void* base = mmap(nullptr, kStackBytes + kGuardBytes, PROT_READ | PROT_WRITE,
+                      MAP_PRIVATE | MAP_ANON, -1, 0);
+    if (base == MAP_FAILED) {
+        std::fprintf(stderr, "ios: could not reserve the game stack; running on the main thread stack\n");
+        return entry(argc, argv);
+    }
+    mprotect(base, kGuardBytes, PROT_NONE);  // overflow faults instead of corrupting the heap
+    std::fprintf(stderr, "ios: game stack=%zu bytes\n", kStackBytes);
+    StackedCall call{entry, argc, argv, 1};
+    m3_call_on_stack(run_stacked, &call, static_cast<char*>(base) + kGuardBytes + kStackBytes);
+    munmap(base, kStackBytes + kGuardBytes);
+    return call.result;
 }
 
 // Entry point. SDL2main is not linked, so hand SDL_main to SDL's UIKit app

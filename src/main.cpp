@@ -293,7 +293,10 @@ extern "C" int SDL_main(int argc, char** argv) {
 }
 #elif defined(M3_IOS)
 // ios_platform.mm supplies main(), which hands this to SDL_UIKitRunApp (UIKit main thread).
-extern "C" int SDL_main(int argc, char** argv) { return mother3_main(argc, argv); }
+extern "C" int SDL_main(int argc, char** argv) {
+    // The generated guest calls need a deeper stack than the UIKit main thread's.
+    return m3_ios_run_with_stack(mother3_main, argc, argv);
+}
 #else
 int main(int argc, char** argv) { return mother3_main(argc, argv); }
 #endif
