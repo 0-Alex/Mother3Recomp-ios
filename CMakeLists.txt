@@ -65,11 +65,16 @@ else()
     add_executable(Mother3Recomp ${MOTHER3_SOURCES})
     if(IOS)
         target_sources(Mother3Recomp PRIVATE src/ios_platform.mm)
-        set_source_files_properties(src/ios_platform.mm PROPERTIES LANGUAGE CXX COMPILE_FLAGS "-x objective-c++ -fobjc-arc")
+        set_source_files_properties(src/ios_platform.mm PROPERTIES
+            LANGUAGE CXX
+            COMPILE_FLAGS "-x objective-c++ -fobjc-arc")
         target_compile_definitions(Mother3Recomp PRIVATE M3_IOS=1)
         target_link_libraries(Mother3Recomp PRIVATE ${M3_IOS_LINK_LIBS})
-        target_include_directories(Mother3Recomp PRIVATE "${RECOMP_UI_ROOT}/src/common")
-        target_sources(Mother3Recomp PRIVATE "${RECOMP_UI_ROOT}/src/common/ips_patch.c" "${RECOMP_UI_ROOT}/src/common/crc32.c" "${RECOMP_UI_ROOT}/src/common/sha1.c")
+        # The launcher UI library is off on iOS, but m3_setup.cpp still needs the
+        # portable IPS/BPS/UPS patcher (and its CRC32) from recomp-ui.
+        target_sources(Mother3Recomp PRIVATE
+            "${RECOMP_UI_ROOT}/src/common/ips_patch.c"
+            "${RECOMP_UI_ROOT}/src/common/crc32.c")
         set_target_properties(Mother3Recomp PROPERTIES
             MACOSX_BUNDLE TRUE
             MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist.in")
@@ -115,6 +120,11 @@ target_include_directories(${MOTHER3_TARGET} PRIVATE
     "${GBARECOMP_ROOT}/src/gba"
     "${GBARECOMP_ROOT}/src/runtime"
     "${GBARECOMP_ROOT}/src/debug")
+if(IOS)
+    # Searched after gbarecomp's dirs on purpose: recomp-ui has its own sha1.h and
+    # crc32.h, and the game expects gbarecomp's (gba::sha1) to win.
+    target_include_directories(${MOTHER3_TARGET} PRIVATE "${RECOMP_UI_ROOT}/src/common")
+endif()
 
 if(APPLE OR MSVC)
     # Apple's ld64 rejects --start-group and resolves archive cycles itself.
