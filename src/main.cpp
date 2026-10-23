@@ -236,6 +236,8 @@ int mother3_main(int argc, char** argv) {
         const m3settings::Settings settings = m3settings::load(".");
         args.insert(args.begin() + 1, {"--screen", settings.screen});
         if (settings.widescreen) args.insert(args.begin() + 1, {"--view-width", "284"});
+        // m3_smooth_120; ProMotion needs CADisableMinimumFrameDurationOnPhone (Info.plist).
+        m3smooth::enable(settings.smooth);
     }
     opts.orientation = gbarecomp::RunOptions::Orientation::Landscape;
     opts.resume_suspend_state_on_launch = true;
