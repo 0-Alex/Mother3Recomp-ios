@@ -4,6 +4,7 @@
 # gbarecomp, so gbarecomp's existing "parent-provided SDL2" path is reused.
 enable_language(OBJCXX)
 include(FetchContent)
+add_compile_options(-DGLES_SILENCE_DEPRECATION -Wno-deprecated-declarations)
 
 # SDL2's own CMake files declare an old minimum version; CMake 4 rejects that
 # unless told otherwise. Ignored by older CMake versions.
@@ -14,11 +15,21 @@ set(SDL_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_TEST   OFF CACHE BOOL "" FORCE)
 set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
 
+# SDL's Objective-C sources must not inherit this project's C++ standard
+# (clang rejects -std=gnu++2a for Objective-C). Drop it only while SDL is added.
+set(_m3_saved_cxx_std "${CMAKE_CXX_STANDARD}")
+set(_m3_saved_cxx_std_required "${CMAKE_CXX_STANDARD_REQUIRED}")
+unset(CMAKE_CXX_STANDARD)
+unset(CMAKE_CXX_STANDARD_REQUIRED)
+
 FetchContent_Declare(SDL2
     GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
     GIT_TAG        release-2.30.9
     GIT_SHALLOW    TRUE)
 FetchContent_MakeAvailable(SDL2)
+
+set(CMAKE_CXX_STANDARD "${_m3_saved_cxx_std}")
+set(CMAKE_CXX_STANDARD_REQUIRED "${_m3_saved_cxx_std_required}")
 
 if(NOT TARGET SDL2::SDL2)
     add_library(SDL2::SDL2 INTERFACE IMPORTED GLOBAL)
