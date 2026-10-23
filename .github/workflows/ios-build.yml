@@ -69,6 +69,7 @@ jobs:
           test -n "$APP" || { echo "No .app produced"; find build-ios -maxdepth 2 | head -50; exit 1; }
           echo "Bundle: $APP"; ls -la "$APP"
           cp android/game_android_mother3en.toml "$APP/game_ios_mother3en.toml"
+          cp ios/AppIcon60x60@2x.png ios/AppIcon60x60@3x.png "$APP/"
           lipo -info "$APP/Mother3Recomp" || true
           mkdir -p ipa/Payload
           cp -R "$APP" ipa/Payload/

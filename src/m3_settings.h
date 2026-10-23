@@ -24,7 +24,7 @@ struct Settings {
     int smooth = 0;              // 120 fps smooth motion: 0 off, 1 on 100 Hz+ displays, 2 always
     double vivid_gamma = 1.25;   // screen=vivid midtone darkening, 1.0 (= raw) .. 2.0
     double lcd_grid = 0.0;       // touch builds: LCD pixel-grid strength, 0 (off) .. 1
-    bool touch_zones = false;    // touch builds: left-half floating stick, right-half A/B
+    std::string controls = "gestures";  // touch builds: gestures, zones (stick + A/B halves), pad
     std::array<std::string, kButtonCount> keys;  // SDL scancode names
 };
 
