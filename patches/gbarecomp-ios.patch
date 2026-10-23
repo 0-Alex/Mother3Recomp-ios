@@ -34,3 +34,95 @@
  }
  // POSIX mirror of the Win32 path above: dlopen/dlsym for
  // LoadLibrary/GetProcAddress. Until this existed, every heal off Windows failed
+--- a/src/runtime/host_window.cpp
++++ b/src/runtime/host_window.cpp
+@@ -46,6 +46,17 @@
+ #define RECOMP_AUDIO_DRC_IMPL
+ #include "recomp_audio_drc.h"
+ 
++#ifdef __APPLE__
++#include <TargetConditionals.h>
++#endif
++// Phones and tablets (Android, iOS) share the touch-first presentation:
++// on-screen pad, full-drawable layout with side rails, touch-scaled menus.
++#if defined(__ANDROID__) || (defined(__APPLE__) && TARGET_OS_IPHONE)
++#define GBARECOMP_MOBILE_HOST 1
++#else
++#define GBARECOMP_MOBILE_HOST 0
++#endif
++
+ #if defined(__ANDROID__)
+ #include <atomic>
+ #include <jni.h>
+@@ -1337,7 +1348,7 @@
+     io.IniFilename = nullptr;
+     io.LogFilename = nullptr;
+     ImGui::StyleColorsDark();
+-#if defined(__ANDROID__)
++#if GBARECOMP_MOBILE_HOST
+     io.ConfigFlags |= ImGuiConfigFlags_IsTouchScreen;
+     io.FontGlobalScale = 1.75f;
+     ImGui::GetStyle().ScaleAllSizes(1.75f);
+@@ -1442,7 +1453,7 @@
+ PresentationLayout current_presentation_layout(Backend* b, int* out_w, int* out_h) {
+     int drawable_w = 0;
+     int drawable_h = 0;
+-#if defined(__ANDROID__)
++#if GBARECOMP_MOBILE_HOST
+     if (SDL_GetRendererOutputSize(b->renderer, &drawable_w, &drawable_h) != 0 ||
+         drawable_w <= 0 || drawable_h <= 0) {
+         SDL_GetWindowSize(b->window, &drawable_w, &drawable_h);
+@@ -1519,7 +1530,7 @@
+ #endif
+     // Portrait top anchoring (per-present game request): the image hugs the
+     // top safe edge so host-drawn controls get all of the space below it.
+-#if defined(__ANDROID__)
++#if GBARECOMP_MOBILE_HOST
+     const bool explicit_destination = true;
+ #else
+     // The fixed native desktop path presents through SDL's logical size,
+@@ -1723,6 +1734,8 @@
+     b->touch_controls = true;
+     b->fullscreen = android_display_preference("fullscreenPreferenceFromNative", true) ? 1 : 0;
+     b->fill_display = android_display_preference("fillDisplayPreferenceFromNative", false);
++#elif GBARECOMP_MOBILE_HOST
++    b->touch_controls = true;
+ #else
+     if (const char* touch_env = std::getenv("GBARECOMP_TOUCH_CONTROLS"))
+         b->touch_controls = *touch_env && *touch_env != '0';
+@@ -1866,7 +1879,7 @@
+         log_display_mode(b->window, "open");
+     }
+     b->cadence.init();
+-#if defined(__ANDROID__)
++#if GBARECOMP_MOBILE_HOST
+     // Mobile presentation owns the whole drawable: a centered integer-scaled
+     // game viewport plus dedicated side rails for touch controls.
+     SDL_RenderSetLogicalSize(b->renderer, 0, 0);
+@@ -2345,7 +2358,7 @@
+         std::fflush(stderr);
+     }
+     if (touch_input_enabled(b)) publish_touch_presentation(b);
+-#if defined(__ANDROID__)
++#if GBARECOMP_MOBILE_HOST
+     const SDL_Rect destination{layout.x, layout.y, layout.width, layout.height};
+     SDL_RenderCopy(b->renderer, frame_texture, nullptr, &destination);
+ #else
+@@ -2628,7 +2641,7 @@
+         // SDL then reports the left mouse button as a touch finger
+         // (touchId SDL_MOUSE_TOUCHID), exercising the real finger path.
+         SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "1");
+-#if !defined(__ANDROID__)
++#if !GBARECOMP_MOBILE_HOST
+         // A desktop session that asks for touch emulation also gets the pad
+         // capability so its toggle and layouts can be validated.
+         b->touch_controls = true;
+@@ -2636,7 +2649,7 @@
+     }
+     if (!b->pad_choice_saved) {
+         const bool platform_default =
+-#if defined(__ANDROID__)
++#if GBARECOMP_MOBILE_HOST
+             true;
+ #else
+             false;
