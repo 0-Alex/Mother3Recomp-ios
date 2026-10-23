@@ -65,7 +65,7 @@ else()
     add_executable(Mother3Recomp ${MOTHER3_SOURCES})
     if(IOS)
         target_sources(Mother3Recomp PRIVATE src/ios_platform.mm)
-        set_source_files_properties(src/ios_platform.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+        set_source_files_properties(src/ios_platform.mm PROPERTIES LANGUAGE CXX COMPILE_FLAGS "-x objective-c++ -fobjc-arc")
         target_compile_definitions(Mother3Recomp PRIVATE M3_IOS=1)
         target_link_libraries(Mother3Recomp PRIVATE ${M3_IOS_LINK_LIBS})
         set_target_properties(Mother3Recomp PROPERTIES
