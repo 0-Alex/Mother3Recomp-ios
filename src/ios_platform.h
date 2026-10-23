@@ -12,3 +12,7 @@ bool m3_ios_prepare_process(std::vector<std::string>& args);
 // on the UIKit main thread (~1 MiB stack), so instead of a new thread this
 // switches the main thread onto a reserved 256 MiB stack for the call.
 int m3_ios_run_with_stack(int (*entry)(int, char**), int argc, char** argv);
+
+// Ask ProMotion displays for their full refresh rate (smooth motion needs
+// 120 Hz; otherwise each in-between frame costs a 60 Hz vsync).
+void m3_ios_request_high_refresh();

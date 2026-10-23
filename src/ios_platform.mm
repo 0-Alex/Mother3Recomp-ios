@@ -1,9 +1,11 @@
 #import <Foundation/Foundation.h>
+#import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
 
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 
@@ -52,6 +54,28 @@ bool m3_ios_prepare_process(std::vector<std::string>& args) {
     args.emplace_back("variants/mother3en/game.toml");
    
     return true;
+}
+
+// ProMotion only runs an app above 60 Hz while something asks for it: SDL's
+// Metal renderer just presents drawables, so a smooth-motion session holds an
+// idle CADisplayLink requesting 120 Hz (Info.plist also carries
+// CADisableMinimumFrameDurationOnPhone, without which the request is capped).
+@interface M3RefreshRequest : NSObject
+- (void)tick:(CADisplayLink*)link;
+@end
+@implementation M3RefreshRequest
+- (void)tick:(CADisplayLink*)link {}
+@end
+
+void m3_ios_request_high_refresh() {
+    static CADisplayLink* link = nil;
+    if (link) return;
+    static M3RefreshRequest* target = [M3RefreshRequest new];
+    link = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
+    const float max_hz = static_cast<float>([UIScreen mainScreen].maximumFramesPerSecond);
+    link.preferredFrameRateRange = CAFrameRateRangeMake(std::min(80.0f, max_hz), max_hz, max_hz);
+    [link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    std::fprintf(stderr, "ios: requested %.0f Hz presentation\n", max_hz);
 }
 
 // m3_call_on_stack(fn, arg, stack_top): call fn(arg) with sp = stack_top,
