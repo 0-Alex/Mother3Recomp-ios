@@ -236,6 +236,8 @@ int mother3_main(int argc, char** argv) {
         const m3settings::Settings settings = m3settings::load(".");
         args.insert(args.begin() + 1, {"--screen", settings.screen});
         setenv("GBARECOMP_VIVID_GAMMA", m3settings::vivid_gamma_text(settings.vivid_gamma).c_str(), 1);
+        setenv("GBARECOMP_LCD_GRID", m3settings::vivid_gamma_text(settings.lcd_grid).c_str(), 1);
+        setenv("GBARECOMP_TOUCH_ZONES", settings.touch_zones ? "1" : "0", 1);
         if (settings.widescreen) args.insert(args.begin() + 1, {"--view-width", "284"});
         // m3_smooth_120; ProMotion needs CADisableMinimumFrameDurationOnPhone (Info.plist).
         m3smooth::enable(settings.smooth);

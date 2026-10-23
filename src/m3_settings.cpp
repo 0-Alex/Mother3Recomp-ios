@@ -128,6 +128,9 @@ Settings load(const std::string& dir) {
     s.smooth = to_int(cfg, "m3_smooth_120", 0, 0, 2);
     if (auto it = cfg.find("m3_vivid_gamma"); it != cfg.end() && !it->second.empty())
         s.vivid_gamma = std::clamp(std::atof(it->second.c_str()), 1.0, 2.0);
+    if (auto it = cfg.find("m3_lcd_grid"); it != cfg.end() && !it->second.empty())
+        s.lcd_grid = std::clamp(std::atof(it->second.c_str()), 0.0, 1.0);
+    s.touch_zones = to_int(cfg, "m3_touch_zones", 0, 0, 1) != 0;
     if (auto it = cfg.find("screen"); it != cfg.end())
         for (const char* name : kScreens)
             if (lower(it->second) == name) s.screen = name;
@@ -148,7 +151,9 @@ void save(const std::string& dir, const Settings& s) {
                    {"m3_button_prompts", std::to_string(s.prompt_style)},
                    {"m3_widescreen", s.widescreen ? "1" : "0"},
                    {"m3_smooth_120", std::to_string(s.smooth)},
-                   {"m3_vivid_gamma", vivid_gamma_text(s.vivid_gamma)}});
+                   {"m3_vivid_gamma", vivid_gamma_text(s.vivid_gamma)},
+                   {"m3_lcd_grid", vivid_gamma_text(s.lcd_grid)},
+                   {"m3_touch_zones", s.touch_zones ? "1" : "0"}});
     std::vector<std::pair<std::string, std::string>> keys;
     for (int i = 0; i < kButtonCount; ++i) keys.emplace_back(kButtonKeys[i], s.keys[i]);
     write_section(dir + "/keybinds.ini", "player1", keys);
