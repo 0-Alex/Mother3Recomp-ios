@@ -68,6 +68,8 @@ else()
         set_source_files_properties(src/ios_platform.mm PROPERTIES LANGUAGE CXX COMPILE_FLAGS "-x objective-c++ -fobjc-arc")
         target_compile_definitions(Mother3Recomp PRIVATE M3_IOS=1)
         target_link_libraries(Mother3Recomp PRIVATE ${M3_IOS_LINK_LIBS})
+        target_include_directories(Mother3Recomp PRIVATE "${RECOMP_UI_ROOT}/src/common")
+        target_sources(Mother3Recomp PRIVATE "${RECOMP_UI_ROOT}/src/common/ips_patch.c" "${RECOMP_UI_ROOT}/src/common/crc32.c" "${RECOMP_UI_ROOT}/src/common/sha1.c")
         set_target_properties(Mother3Recomp PROPERTIES
             MACOSX_BUNDLE TRUE
             MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist.in")
