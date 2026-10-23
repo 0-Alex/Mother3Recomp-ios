@@ -39,7 +39,7 @@ bool m3_ios_prepare_process(std::vector<std::string>& args) {
     if (args.empty()) args.emplace_back("main");
     args[0] = "./Mother3Recomp";
     args.emplace_back("variants/mother3en/game.toml");
-    args.emplace_back("--no-launcher");
+   
     return true;
 }
 
