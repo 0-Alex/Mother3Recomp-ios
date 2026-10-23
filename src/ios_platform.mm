@@ -35,6 +35,9 @@ bool m3_ios_prepare_process(std::vector<std::string>& args) {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     // No compiler on the device: dispatch misses must not try an on-device rebuild.
     setenv("GBARECOMP_SELFHEAL_RECOMPILE", "0", 0);
+    // host_window only turns the on-screen pad on by itself under __ANDROID__;
+    // iOS reaches it through the desktop env switch.
+    setenv("GBARECOMP_TOUCH_CONTROLS", "1", 0);
     std::fprintf(stderr, "ios: working directory is the app Documents folder\n");
     if (args.empty()) args.emplace_back("main");
     args[0] = "./Mother3Recomp";
