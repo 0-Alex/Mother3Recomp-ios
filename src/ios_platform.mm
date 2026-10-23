@@ -38,6 +38,10 @@ bool m3_ios_prepare_process(std::vector<std::string>& args) {
     // host_window only turns the on-screen pad on by itself under __ANDROID__;
     // iOS reaches it through the desktop env switch.
     setenv("GBARECOMP_TOUCH_CONTROLS", "1", 0);
+    // The window is not high-DPI, so the drawable is in UIKit points, but SDL
+    // reports the panel's physical-pixel DPI (~3x too dense for points). Pad
+    // sizes are in mm, so give the runtime the points density (~160/inch).
+    setenv("GBARECOMP_TOUCH_DPI", "160", 0);
     std::fprintf(stderr, "ios: working directory is the app Documents folder\n");
     if (args.empty()) args.emplace_back("main");
     args[0] = "./Mother3Recomp";
