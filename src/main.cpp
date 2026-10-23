@@ -228,7 +228,15 @@ int mother3_main(int argc, char** argv) {
     // App Documents becomes the working directory (see ios_platform.mm). The
     // launcher/setup UI is not ported yet, so this follows the Android layout.
     m3_ios_prepare_process(args);
-    if (m3settings::load(".").widescreen) args.insert(args.begin() + 1, {"--view-width", "284"});
+    // No launcher yet: config.ini [Launcher] in Documents (Files app) holds the
+    // widescreen and screen-color choices. Write the defaults once to edit.
+    if (std::FILE* existing = std::fopen("config.ini", "r")) std::fclose(existing);
+    else m3settings::save(".", m3settings::defaults());
+    {
+        const m3settings::Settings settings = m3settings::load(".");
+        args.insert(args.begin() + 1, {"--screen", settings.screen});
+        if (settings.widescreen) args.insert(args.begin() + 1, {"--view-width", "284"});
+    }
     opts.orientation = gbarecomp::RunOptions::Orientation::Landscape;
     opts.resume_suspend_state_on_launch = true;
     opts.ui_touch_friendly = true;
