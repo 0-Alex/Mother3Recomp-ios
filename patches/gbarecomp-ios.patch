@@ -138,3 +138,61 @@
              true;
  #else
              false;
+--- a/src/runtime/color_lut.h
++++ b/src/runtime/color_lut.h
+@@ -6,7 +6,7 @@
+ // 32768-entry table applied to a COPY of the frame at SDL-upload time, and
+ // it defaults to Raw (exact passthrough), so default behavior and every
+ // hashed/verified frame are byte-identical unless a screen model is opted in
+-// via GBARECOMP_SCREEN={raw,unlit,frontlit,backlit,classic}.
++// via GBARECOMP_SCREEN={raw,unlit,frontlit,backlit,classic,vivid}.
+ //
+ // The math is first-principles CIE colorimetry (xyY→XYZ, primaries→matrix,
+ // Bradford adaptation, sRGB OETF) over published colorimeter measurements;
+@@ -34,6 +34,7 @@
+     Frontlit,  // reflective panel, lit
+     Backlit,   // late near-sRGB panel, clean blacks
+     Classic,   // community-canonical gamma-4.0 model
++    Vivid,     // per-channel midtone gamma, no channel mixing (GBARECOMP_VIVID_GAMMA)
+ };
+ 
+ // Display colorspace the emitted bytes are interpreted in.
+--- a/src/runtime/color_lut.cpp
++++ b/src/runtime/color_lut.cpp
+@@ -8,6 +8,7 @@
+ 
+ #include <cstddef>
+ #include <cmath>
++#include <cstdlib>
+ #include <cstring>
+ 
+ namespace gbarecomp::runtime {
+@@ -173,6 +174,7 @@
+     if (name == "frontlit") { out = ScreenKind::Frontlit; return true; }
+     if (name == "backlit")  { out = ScreenKind::Backlit;  return true; }
+     if (name == "classic")  { out = ScreenKind::Classic;  return true; }
++    if (name == "vivid")    { out = ScreenKind::Vivid;    return true; }
+     return false;
+ }
+ 
+@@ -184,6 +186,20 @@
+ 
+     table_ = std::make_unique<std::array<std::array<uint8_t, 3>, 32768>>();
+     auto& table = *table_;
++    if (settings.screen == ScreenKind::Vivid) {
++        // Raw's colors with darker midtones: each channel gets the same power
++        // curve and channels never mix, so hues stay put (unlike Classic).
++        double gamma = 1.25;
++        if (const char* env = std::getenv("GBARECOMP_VIVID_GAMMA")) {
++            const double v = std::atof(env);
++            if (v >= 1.0 && v <= 2.0) gamma = v;
++        }
++        for (int px = 0; px < 32768; ++px)
++            table[px] = {quantize(std::pow((px & 31) / 31.0, gamma)),
++                         quantize(std::pow(((px >> 5) & 31) / 31.0, gamma)),
++                         quantize(std::pow(((px >> 10) & 31) / 31.0, gamma))};
++        return;
++    }
+     if (settings.screen == ScreenKind::Classic) {
+         for (int px = 0; px < 32768; ++px)
+             table[px] = classic_entry(static_cast<uint16_t>(px));

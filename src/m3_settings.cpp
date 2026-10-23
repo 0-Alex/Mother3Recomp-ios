@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <map>
@@ -18,7 +19,11 @@ namespace {
 // Same defaults as the runtime (host_window.cpp kDefaultBinds), as scancode names.
 const char* const kDefaultKeys[kButtonCount] = {"Up", "Down", "Left", "Right", "X",
                                                 "Z",  "C",    "V",    "Return", "Right Shift"};
+#if defined(M3_IOS)
+const char* const kScreens[] = {"raw", "backlit", "frontlit", "unlit", "classic", "vivid"};
+#else
 const char* const kScreens[] = {"raw", "backlit", "frontlit", "unlit", "classic"};
+#endif
 
 std::string lower(std::string s) {
     for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -98,6 +103,12 @@ int to_int(const std::map<std::string, std::string>& m, const char* key, int fal
 
 }  // namespace
 
+std::string vivid_gamma_text(double g) {
+    char text[16];
+    std::snprintf(text, sizeof text, "%.2f", g);
+    return text;
+}
+
 Settings defaults() {
     Settings s;
     for (int i = 0; i < kButtonCount; ++i) s.keys[i] = kDefaultKeys[i];
@@ -115,6 +126,8 @@ Settings load(const std::string& dir) {
     s.prompt_style = to_int(cfg, "m3_button_prompts", s.prompt_style, 0, 4);
     s.widescreen = to_int(cfg, "m3_widescreen", 0, 0, 1) != 0;
     s.smooth = to_int(cfg, "m3_smooth_120", 0, 0, 2);
+    if (auto it = cfg.find("m3_vivid_gamma"); it != cfg.end() && !it->second.empty())
+        s.vivid_gamma = std::clamp(std::atof(it->second.c_str()), 1.0, 2.0);
     if (auto it = cfg.find("screen"); it != cfg.end())
         for (const char* name : kScreens)
             if (lower(it->second) == name) s.screen = name;
@@ -134,7 +147,8 @@ void save(const std::string& dir, const Settings& s) {
                    {"volume", std::to_string(s.volume)},
                    {"m3_button_prompts", std::to_string(s.prompt_style)},
                    {"m3_widescreen", s.widescreen ? "1" : "0"},
-                   {"m3_smooth_120", std::to_string(s.smooth)}});
+                   {"m3_smooth_120", std::to_string(s.smooth)},
+                   {"m3_vivid_gamma", vivid_gamma_text(s.vivid_gamma)}});
     std::vector<std::pair<std::string, std::string>> keys;
     for (int i = 0; i < kButtonCount; ++i) keys.emplace_back(kButtonKeys[i], s.keys[i]);
     write_section(dir + "/keybinds.ini", "player1", keys);
