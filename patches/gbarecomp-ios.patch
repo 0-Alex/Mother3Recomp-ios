@@ -90,7 +90,19 @@
  #else
      if (const char* touch_env = std::getenv("GBARECOMP_TOUCH_CONTROLS"))
          b->touch_controls = *touch_env && *touch_env != '0';
-@@ -1866,7 +1879,7 @@
+@@ -1759,6 +1772,11 @@
+         ((b->expanded_view || b->resize_driven_view ||
+           b->freely_resizable_window)
+              ? static_cast<Uint32>(SDL_WINDOW_RESIZABLE) : Uint32{0});
++#if defined(__APPLE__) && TARGET_OS_IPHONE
++    // Without this UIKit hands SDL a points-sized drawable and stretches it
++    // (filtered) to the panel, so integer scales are not exact on screen.
++    window_flags |= SDL_WINDOW_ALLOW_HIGHDPI;
++#endif
+ #if defined(__ANDROID__)
+     // SDLActivity maps this hint (plus RESIZABLE) onto the Activity's
+     // requested orientation; "any" becomes a full-sensor, live-rotating app.
+@@ -1866,7 +1884,7 @@
          log_display_mode(b->window, "open");
      }
      b->cadence.init();
@@ -99,7 +111,7 @@
      // Mobile presentation owns the whole drawable: a centered integer-scaled
      // game viewport plus dedicated side rails for touch controls.
      SDL_RenderSetLogicalSize(b->renderer, 0, 0);
-@@ -2345,7 +2358,7 @@
+@@ -2345,7 +2363,7 @@
          std::fflush(stderr);
      }
      if (touch_input_enabled(b)) publish_touch_presentation(b);
@@ -108,7 +120,7 @@
      const SDL_Rect destination{layout.x, layout.y, layout.width, layout.height};
      SDL_RenderCopy(b->renderer, frame_texture, nullptr, &destination);
  #else
-@@ -2628,7 +2641,7 @@
+@@ -2628,7 +2646,7 @@
          // SDL then reports the left mouse button as a touch finger
          // (touchId SDL_MOUSE_TOUCHID), exercising the real finger path.
          SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "1");
@@ -117,7 +129,7 @@
          // A desktop session that asks for touch emulation also gets the pad
          // capability so its toggle and layouts can be validated.
          b->touch_controls = true;
-@@ -2636,7 +2649,7 @@
+@@ -2636,7 +2654,7 @@
      }
      if (!b->pad_choice_saved) {
          const bool platform_default =

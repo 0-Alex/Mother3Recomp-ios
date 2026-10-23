@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 #include <sys/mman.h>
 #include <unistd.h>
@@ -39,10 +40,12 @@ bool m3_ios_prepare_process(std::vector<std::string>& args) {
     // host_window only turns the on-screen pad on by itself under __ANDROID__;
     // iOS reaches it through the desktop env switch.
     setenv("GBARECOMP_TOUCH_CONTROLS", "1", 0);
-    // The window is not high-DPI, so the drawable is in UIKit points, but SDL
-    // reports the panel's physical-pixel DPI (~3x too dense for points). Pad
-    // sizes are in mm, so give the runtime the points density (~160/inch).
-    setenv("GBARECOMP_TOUCH_DPI", "160", 0);
+    // SDL's reported DPI is unreliable on iOS and pad sizes are in mm. The
+    // high-DPI drawable is in native pixels: ~160 points/inch times the
+    // screen's native scale (3 on current iPhones).
+    char dpi[32];
+    std::snprintf(dpi, sizeof dpi, "%.0f", 160.0 * [UIScreen mainScreen].nativeScale);
+    setenv("GBARECOMP_TOUCH_DPI", dpi, 0);
     std::fprintf(stderr, "ios: working directory is the app Documents folder\n");
     if (args.empty()) args.emplace_back("main");
     args[0] = "./Mother3Recomp";
