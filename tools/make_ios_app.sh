@@ -98,13 +98,18 @@ gh secret set NATIVE_CORPUS_KEY -R "$repo" --body "$(head -n1 "$key")"
 if gh release view "$release_tag" -R "$repo" >/dev/null 2>&1; then
   [ "$(gh release view "$release_tag" -R "$repo" --json isDraft -q .isDraft)" = "true" ] ||
     die "release '$release_tag' on $repo is published; delete it or turn it back into a draft"
-  gh release upload "$release_tag" -R "$repo" --clobber "$work/corpus.enc"
 else
   gh release create "$release_tag" -R "$repo" --draft \
     --title "private native corpus (do not publish)" \
-    --notes "Encrypted code generated from a privately owned ROM, used by the iOS build. Keep this a draft." \
-    "$work/corpus.enc"
+    --notes "Encrypted code generated from a privately owned ROM, used by the iOS build. Keep this a draft."
 fi
+# Large uploads to GitHub occasionally time out (HTTP 408); retry before giving up.
+for attempt in 1 2 3; do
+  gh release upload "$release_tag" -R "$repo" --clobber "$work/corpus.enc" && break
+  [ "$attempt" = 3 ] && die "uploading the encrypted code failed 3 times; check your connection and rerun"
+  echo "upload failed; retrying in 15 seconds ($attempt/3)"
+  sleep 15
+done
 asset_id="$(gh api "repos/$repo/releases" \
   --jq ".[] | select(.tag_name == \"$release_tag\") | .assets[] | select(.name == \"corpus.enc\") | .id" | head -n1)"
 [ -n "$asset_id" ] || die "could not find the uploaded corpus on the draft release"
