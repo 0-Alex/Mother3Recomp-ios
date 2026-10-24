@@ -43,7 +43,7 @@ On iPhones with a ProMotion display, 120 fps smooth motion is supported: an in-b
 
 ## Setup
 
-1. Sideload the `.ipa` (for example with AltStore, SideStore or Impactor).
+1. Sideload the `.ipa` (for example with AltStore, SideStore or Impactor; For linux users I reccomend iloader).
 2. Open the app once, then open the Files app: **On My iPhone → MOTHER 3**.
 3. Copy in your files:
    - `bios/gba_bios.bin`: GBA BIOS
