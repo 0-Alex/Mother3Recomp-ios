@@ -66,7 +66,7 @@
      int           sharp_texture_w = 0;
      int           sharp_texture_h = 0;
      bool          sharp_target_failed = false;
-@@ -393,8 +409,23 @@
+@@ -393,8 +409,24 @@
          float start_x = 0.0f, start_y = 0.0f;
          float grab_dx = 0.0f, grab_dy = 0.0f;  // toggle centre - finger
          bool routed = false;
@@ -78,8 +78,9 @@
 +        Uint32 down_ms = 0;
      };
      std::array<TouchPoint, 10> touches{};
-+    // Touch zones (GBARECOMP_TOUCH_ZONES=1): the left half is a floating 8-way
-+    // stick, the right half presses the nearer of A/B; other pad buttons stay.
++    // Touch zones (GBARECOMP_TOUCH_STYLE=1): the left half is an invisible
++    // floating 8-way stick and the rest of the right half is A; L, R, a held B
++    // and small Start/Select circles in the bottom corners are drawn.
 +    bool touch_zones = false;
 +    // Gestures (GBARECOMP_TOUCH_STYLE=2, implies zones): nothing drawn but L/R;
 +    // a right-half tap is A, a swipe is B (sideways) / Start (up) / Select
@@ -90,7 +91,7 @@
      // Virtual gamepad capability (Android by default; desktop via
      // GBARECOMP_TOUCH_CONTROLS) and its player-controlled visibility.
      bool touch_controls = false;
-@@ -645,6 +676,7 @@
+@@ -645,6 +677,7 @@
      float dpad_thick = 0;
      PadCircle a, b;
      PadRect l, r, select, start;
@@ -98,7 +99,7 @@
      PadRect toggle;
  };
  
-@@ -704,8 +736,20 @@
+@@ -704,11 +737,30 @@
          p.a.y = cy - button_r * 0.9f;
          p.b.x = rx - button_r * kClusterDx * 0.5f;
          p.b.y = cy + button_r * 0.9f;
@@ -115,13 +116,23 @@
 +        p.r = {right - margin - rw, top + margin, rw, shoulder_h};
 +        // Gesture B is a short pulse; dashing needs B held, so it also gets a
 +        // half-width button against the right edge, just under R.
-+        if (b->touch_gestures)
++        if (b->touch_zones)
 +            p.b_small = {right - margin - rw * 0.5f, p.r.y + p.r.h + 3.0f * mm,
 +                         rw * 0.5f, shoulder_h};
          const float mid = (left + right) * 0.5f;
          p.select = {mid - pill_w - 3.0f * mm, bottom - margin - pill_h, pill_w, pill_h};
          p.start = {mid + 3.0f * mm, bottom - margin - pill_h, pill_w, pill_h};
-@@ -773,6 +817,42 @@
++        if (b->touch_zones && !b->touch_gestures) {
++            // Small round Start/Select in the bottom corners, like the
++            // hardware's; drawn as circles inscribed in these squares.
++            const float d = 7.0f * s * mm;
++            p.start = {left + margin, bottom - margin - d, d, d};
++            p.select = {right - margin - d, bottom - margin - d, d, d};
++        }
+     } else {
+         // Portrait: a control band at the bottom (the space under the game
+         // image when it is tall enough, else overlaid on the image).
+@@ -773,6 +825,39 @@
      return buttons;
  }
  
@@ -145,16 +156,13 @@
 +    return kDirs[sector];
 +}
 +
-+uint16_t zone_ab_buttons(const PadLayout& p, float x, float y) {
-+    const float da = (x - p.a.x) * (x - p.a.x) + (y - p.a.y) * (y - p.a.y);
-+    const float db = (x - p.b.x) * (x - p.b.x) + (y - p.b.y) * (y - p.b.y);
-+    return da <= db ? 1u << 0 : 1u << 1;
-+}
-+
-+// Gestures: the only drawn buttons (L, R, the held B); 1 mm of slop keeps R
-+// and B, 3 mm apart, from both firing.
-+uint16_t gesture_buttons_at(const PadLayout& p, float x, float y, float mm) {
++// Gestures and zones: the only drawn buttons (L, R, the held B, and for zones
++// Start/Select); 1 mm of slop keeps R and B, 3 mm apart, from both firing.
++uint16_t gesture_buttons_at(const PadLayout& p, float x, float y, float mm,
++                            bool start_select) {
 +    uint16_t buttons = 0;
++    if (start_select && p.start.contains(x, y, mm)) buttons |= 1u << 3;
++    if (start_select && p.select.contains(x, y, mm)) buttons |= 1u << 2;
 +    if (p.r.contains(x, y, mm)) buttons |= 1u << 8;
 +    if (p.l.contains(x, y, mm)) buttons |= 1u << 9;
 +    if (p.b_small.w > 0.0f && p.b_small.contains(x, y, mm)) buttons |= 1u << 1;
@@ -164,7 +172,7 @@
  bool touch_input_enabled(const Backend* b) {
      return b && (b->touch_controls || b->touch_policy || b->touch_emulation);
  }
-@@ -804,11 +884,23 @@
+@@ -804,11 +889,23 @@
      return nullptr;
  }
  
@@ -190,27 +198,8 @@
      return buttons;
  }
  
-@@ -1050,20 +1142,39 @@
-     const float line = std::max(2.0f, 0.45f * mm);
-     auto on = [held](int bit) { return (held & (1u << bit)) != 0; };
+@@ -1052,18 +1149,20 @@
  
-+    if (b->touch_zones && !b->touch_gestures) {
-+        // Floating stick: a ring where the thumb landed plus a knob under it;
-+        // with no stick touch, a faint ring marks the movement half.
-+        bool drawn = false;
-+        for (const auto& touch : b->touches) {
-+            if (!touch.active || !touch.stick) continue;
-+            const float rim = 9.0f * mm;
-+            ov.fill_circle(touch.anchor_x, touch.anchor_y, rim, backing, S);
-+            ov.stroke_circle(touch.anchor_x, touch.anchor_y, rim, line, outline, S);
-+            ov.fill_circle(touch.x, touch.y, 4.0f * mm,
-+                           touch.buttons ? pressed : OverlayColor{240, 244, 252, 150}, S);
-+            drawn = true;
-+        }
-+        if (!drawn)
-+            ov.stroke_circle(p.dpad.x, p.dpad.y, p.dpad.r, line,
-+                             OverlayColor{240, 244, 252, 70}, S);
-+    }
      // D-pad cross: backing + outline per arm, pressed arm highlighted.
      const float arm = p.dpad.r, t = p.dpad_thick, cx = p.dpad.x, cy = p.dpad.y;
 -    ov.fill_rect(cx - t * 0.5f, cy - arm, t, arm * 2.0f, t * 0.2f, backing, S);
@@ -242,31 +231,40 @@
  
      auto round_button = [&](const PadCircle& c, int bit, OverlayColor tint, const char* text) {
          ov.fill_circle(c.x, c.y, c.r, on(bit) ? pressed : tint, S);
-@@ -1071,8 +1182,10 @@
+@@ -1071,8 +1170,10 @@
          if (ov.text_supported())
              ov.text(c.x, c.y - 2.6f * mm, 5.2f * mm, label, text, OverlayAlign::Center, S);
      };
 -    round_button(p.a, 0, {196, 52, 64, 190}, "A");
 -    round_button(p.b, 1, {40, 120, 200, 190}, "B");
-+    if (!b->touch_gestures) {
++    if (!b->touch_zones) {
 +        round_button(p.a, 0, {196, 52, 64, 190}, "A");
 +        round_button(p.b, 1, {40, 120, 200, 190}, "B");
 +    }
  
      auto pill = [&](const PadRect& r, int bit, const char* text, float radius) {
          ov.fill_rect(r.x, r.y, r.w, r.h, radius, on(bit) ? pressed : backing, S);
-@@ -1085,6 +1198,10 @@
+@@ -1085,6 +1186,19 @@
      };
      pill(p.l, 9, "L", 2.0f * mm);
      pill(p.r, 8, "R", 2.0f * mm);
-+    if (b->touch_gestures) {
++    if (b->touch_zones) {
 +        if (p.b_small.w > 0.0f) pill(p.b_small, 1, "B", 2.0f * mm);
-+        return;  // everything else is an invisible gesture
++        if (!b->touch_gestures) {
++            auto dot = [&](const PadRect& r, int bit) {
++                const float rad = r.w * 0.5f;
++                ov.fill_circle(r.x + rad, r.y + rad, rad, on(bit) ? pressed : backing, S);
++                ov.stroke_circle(r.x + rad, r.y + rad, rad, line, outline, S);
++            };
++            dot(p.start, 3);
++            dot(p.select, 2);
++        }
++        return;  // the stick and A (and gestures' B/Start/Select) are invisible
 +    }
      pill(p.select, 2, "SELECT", p.select.h * 0.5f);
      pill(p.start, 3, "START", p.start.h * 0.5f);
  }
-@@ -1337,7 +1454,7 @@
+@@ -1337,7 +1451,7 @@
      io.IniFilename = nullptr;
      io.LogFilename = nullptr;
      ImGui::StyleColorsDark();
@@ -275,7 +273,7 @@
      io.ConfigFlags |= ImGuiConfigFlags_IsTouchScreen;
      io.FontGlobalScale = 1.75f;
      ImGui::GetStyle().ScaleAllSizes(1.75f);
-@@ -1442,7 +1559,7 @@
+@@ -1442,7 +1556,7 @@
  PresentationLayout current_presentation_layout(Backend* b, int* out_w, int* out_h) {
      int drawable_w = 0;
      int drawable_h = 0;
@@ -284,7 +282,7 @@
      if (SDL_GetRendererOutputSize(b->renderer, &drawable_w, &drawable_h) != 0 ||
          drawable_w <= 0 || drawable_h <= 0) {
          SDL_GetWindowSize(b->window, &drawable_w, &drawable_h);
-@@ -1519,7 +1636,7 @@
+@@ -1519,7 +1633,7 @@
  #endif
      // Portrait top anchoring (per-present game request): the image hugs the
      // top safe edge so host-drawn controls get all of the space below it.
@@ -293,7 +291,7 @@
      const bool explicit_destination = true;
  #else
      // The fixed native desktop path presents through SDL's logical size,
-@@ -1723,11 +1840,20 @@
+@@ -1723,11 +1837,20 @@
      b->touch_controls = true;
      b->fullscreen = android_display_preference("fullscreenPreferenceFromNative", true) ? 1 : 0;
      b->fill_display = android_display_preference("fillDisplayPreferenceFromNative", false);
@@ -314,7 +312,7 @@
      // Desktop validation of inset-aware layouts: GBARECOMP_SAFE_INSETS=l,t,r,b
      // (drawable pixels). Android supplies real cutout insets separately.
      if (const char* insets = std::getenv("GBARECOMP_SAFE_INSETS")) {
-@@ -1759,6 +1885,11 @@
+@@ -1759,6 +1882,11 @@
          ((b->expanded_view || b->resize_driven_view ||
            b->freely_resizable_window)
               ? static_cast<Uint32>(SDL_WINDOW_RESIZABLE) : Uint32{0});
@@ -326,7 +324,7 @@
  #if defined(__ANDROID__)
      // SDLActivity maps this hint (plus RESIZABLE) onto the Activity's
      // requested orientation; "any" becomes a full-sensor, live-rotating app.
-@@ -1866,7 +1997,7 @@
+@@ -1866,7 +1994,7 @@
          log_display_mode(b->window, "open");
      }
      b->cadence.init();
@@ -335,7 +333,7 @@
      // Mobile presentation owns the whole drawable: a centered integer-scaled
      // game viewport plus dedicated side rails for touch controls.
      SDL_RenderSetLogicalSize(b->renderer, 0, 0);
-@@ -2170,6 +2301,7 @@
+@@ -2170,6 +2298,7 @@
      runtime_imgui_shutdown(b);
  #endif
      destroy_sharp_texture(b);
@@ -343,7 +341,7 @@
      if (b->texture2x) SDL_DestroyTexture(b->texture2x);
      if (b->texture)   SDL_DestroyTexture(b->texture);
      if (b->renderer)  SDL_DestroyRenderer(b->renderer);
-@@ -2260,6 +2392,44 @@
+@@ -2260,6 +2389,44 @@
  #endif
      return b->texture2x;
  }
@@ -388,7 +386,7 @@
  }  // namespace
  
  void HostWindow::present(const uint8_t* rgb888) { present_scaled(rgb888, 1); }
-@@ -2345,9 +2515,10 @@
+@@ -2345,9 +2512,10 @@
          std::fflush(stderr);
      }
      if (touch_input_enabled(b)) publish_touch_presentation(b);
@@ -400,7 +398,7 @@
  #else
      if (!b->expanded_view && !b->resize_driven_view) {
          SDL_RenderCopy(b->renderer, frame_texture, nullptr, nullptr);
-@@ -2628,7 +2799,7 @@
+@@ -2628,7 +2796,7 @@
          // SDL then reports the left mouse button as a touch finger
          // (touchId SDL_MOUSE_TOUCHID), exercising the real finger path.
          SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "1");
@@ -409,7 +407,7 @@
          // A desktop session that asks for touch emulation also gets the pad
          // capability so its toggle and layouts can be validated.
          b->touch_controls = true;
-@@ -2636,7 +2807,7 @@
+@@ -2636,7 +2804,7 @@
      }
      if (!b->pad_choice_saved) {
          const bool platform_default =
@@ -418,7 +416,7 @@
              true;
  #else
              false;
-@@ -2911,9 +3082,30 @@
+@@ -2911,9 +3079,29 @@
                  if (auto* touch = allocate_touch(b, e.tfinger.fingerId)) {
                      touch->x = touch->start_x = px;
                      touch->y = touch->start_y = py;
@@ -428,11 +426,10 @@
                              ? pad_buttons_at(pad, px, py, b->px_per_mm) : 0;
 +                    const bool zones = b->touch_zones && b->pad_visible && b->touch_controls;
 +                    if (zones) {
-+                        // The fixed d-pad gives way to the floating stick; with
-+                        // gestures only the drawn buttons (L, R, held B) remain.
-+                        buttons &= static_cast<uint16_t>(~kDpadBits);
-+                        if (b->touch_gestures)
-+                            buttons = gesture_buttons_at(pad, px, py, b->px_per_mm);
++                        // Only the drawn buttons count; the fixed pad's d-pad and
++                        // A/B give way to the floating stick and the A half.
++                        buttons = gesture_buttons_at(pad, px, py, b->px_per_mm,
++                                                     !b->touch_gestures);
 +                        if (!buttons) {
 +                            if (px < b->last_drawable_w * 0.5f) {
 +                                touch->stick = true;
@@ -443,14 +440,14 @@
 +                                touch->down_ms = e.tfinger.timestamp;
 +                            } else {
 +                                touch->zone_ab = true;
-+                                buttons = zone_ab_buttons(pad, px, py);
++                                buttons = 1u << 0;  // the rest of the right half is A
 +                            }
 +                        }
 +                    }
                      // The toggle wins over the pad so it can never be buried
                      // under a button (it is small and player-movable).
                      if (pad_toggle_available(b) &&
-@@ -2921,7 +3113,7 @@
+@@ -2921,7 +3109,7 @@
                          touch->toggle = true;
                          touch->grab_dx = pad.toggle.x + pad.toggle.w * 0.5f - px;
                          touch->grab_dy = pad.toggle.y + pad.toggle.h * 0.5f - py;
@@ -459,7 +456,7 @@
                          touch->pad = true;
                          touch->buttons = buttons;
                      } else {
-@@ -2932,9 +3124,50 @@
+@@ -2932,9 +3120,50 @@
              } else if (auto* touch = find_touch(b, e.tfinger.fingerId)) {
                  touch->x = px;
                  touch->y = py;
@@ -478,7 +475,7 @@
 +                    }
 +                    touch->buttons = stick_buttons(dx, dy, 2.5f * b->px_per_mm);
 +                } else if (touch->zone_ab) {
-+                    touch->buttons = zone_ab_buttons(pad, px, py);
++                    touch->buttons = 1u << 0;
 +                } else if (touch->tap) {
 +                    const Uint32 t = e.tfinger.timestamp;
 +                    const bool in_window = !SDL_TICKS_PASSED(t, touch->down_ms + kTapWindowMs);
@@ -505,9 +502,9 @@
 +                } else if (touch->pad) {
                      // Sliding between pad buttons follows the finger.
                      touch->buttons = pad_buttons_at(pad, px, py, b->px_per_mm);
-+                    if (b->touch_zones) touch->buttons &= static_cast<uint16_t>(~kDpadBits);
-+                    if (b->touch_gestures)
-+                        touch->buttons = gesture_buttons_at(pad, px, py, b->px_per_mm);
++                    if (b->touch_zones)
++                        touch->buttons = gesture_buttons_at(pad, px, py, b->px_per_mm,
++                                                            !b->touch_gestures);
                  } else if (touch->routed) {
                      route(e.type == SDL_FINGERUP ? TouchPhase::Up : TouchPhase::Move);
                  } else if (touch->toggle) {

@@ -23,7 +23,7 @@ The movement stick follows your thumb: wherever you put it down becomes the cent
 
 Prefer buttons you can see? Two other schemes are available (see [Settings](#settings)):
 
-- `zones`: a visible floating stick on the left; the right half presses whichever of A or B is closer
+- `zones`: the same invisible stick on the left; anywhere else on the right half is A, pressed instantly (no swipe wait, so no added delay). L, R and the held B stay where they are, and Start (bottom left) and Select (bottom right) are small round buttons like the GBA's
 - `pad`: the original fixed on-screen gamepad
 
 ## Controllers
