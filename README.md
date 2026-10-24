@@ -7,7 +7,7 @@ The game runs as natively recompiled ARM code, not through an emulator's interpr
 
 ## Touch controls
 
-The default control scheme keeps the screen clear: only L and R are drawn, and everything else is an invisible gesture.
+The default control scheme keeps the screen clear: only L, R and a small B button are drawn, and everything else is an invisible gesture.
 
 | Where | Action | Button |
 | --- | --- | --- |
@@ -17,6 +17,7 @@ The default control scheme keeps the screen clear: only L and R are drawn, and e
 | Right half of the screen | Swipe up | Start |
 | Right half of the screen | Swipe down | Select |
 | Top-left / top-right corners, beside the game | Press | L / R |
+| Small button under R, on the right edge | Press and hold | B (hold to charge a dash) |
 
 The movement stick follows your thumb: wherever you put it down becomes the center.
 
