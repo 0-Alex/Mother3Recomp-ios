@@ -63,6 +63,28 @@ m3_smooth_120=1        ; 120 fps smooth motion: 0 off, 1 on (120 Hz screens)
 m3_widescreen=0        ; 1 = 16:9 widescreen in the field
 ```
 
+## Example
+
+My setup: widescreen, vivid colors, a light LCD grid, 120 Hz smooth motion and the gesture controls.
+
+![MOTHER 3 on iPhone in widescreen with vivid colors and a light LCD grid](docs/screenshots/iphone-example.png)
+
+```ini
+[Launcher]
+m3_window_flavor = 0
+fullscreen = 1
+scale = 6
+sharp_filter = 1
+screen = vivid
+volume = 100
+m3_button_prompts = 0
+m3_widescreen = 1
+m3_smooth_120 = 1
+m3_vivid_gamma = 1.25
+m3_lcd_grid = 0.175
+m3_controls = gestures
+```
+
 ## Making your own .ipa
 
 No Mac required. The game code has to be generated from your own ROM, so you build your own copy: one script on your computer, and the iPhone app is compiled by GitHub's Mac runners in your own fork.
