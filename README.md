@@ -46,12 +46,12 @@ On iPhones with a ProMotion display, 120 fps smooth motion is supported: an in-b
 2. Open the app once, then open the Files app: **On My iPhone → MOTHER 3**.
 3. Copy in your files:
    - `bios/gba_bios.bin`: GBA BIOS
-   - `roms/mother3_en_v13.gba`: MOTHER 3 with the English fan translation v1.3
+   - `roms/mother3_en_v13.gba`: MOTHER 3 with the English fan translation v1.3(make sure to rename your rom to this)
 4. Launch the game.
 
 ## Settings
 
-Settings live in `config.ini` in the same folder (created on first launch). Edit it in the Files app, then fully close and reopen the game.
+Settings live in `config.ini` in the same folder (created on first launch). Edit it in the Files app, then fully close and reopen the game. To edit the ini with your iphone rename it to a txt then reopen edit etc.
 
 ```ini
 [Launcher]
@@ -77,7 +77,7 @@ No Mac required. The game code has to be generated from your own ROM, so you bui
 
 The script checks your ROM and BIOS, generates the native code on your computer, uploads it encrypted to a private draft release on your fork, runs the iOS build and downloads the finished app to `ios-ipa/Mother3Recomp-unsigned.ipa`. Your ROM, BIOS and the generated code are never committed, and the script removes the built app from GitHub once it is downloaded.
 
-It isn't exactly as seamless as "download my ipa and open the ROM", but it's getting there.
+It isn't exactly as seamless as download my ipa and open the ROM, but it's getting there.
 
 ## Credits
 
