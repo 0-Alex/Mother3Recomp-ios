@@ -3,11 +3,11 @@
 A fork of [Josiah's MOTHER 3 Recomp](https://github.com/josiahg2502-glitch/Mother3Recomp) focused on making the game a more seamless experience on iPhone, with built-in touch controls.
 Bring your own ROM and BIOS.
 
-The game runs as natively recompiled ARM code, not through an emulator's interpreter, so it runs at full speed on iPhone without JIT.
+The game runs NATIVELY as RECOMPILED ARM code, not through an emulator's INTERPRETER, so it runs at full SPEED on iPhone without JIT NO INPUT LAG.
 
-## Touch controls
+## Touch controls(polling lag :( )
 
-The default control scheme keeps the screen clear: only L, R and a small B button are drawn, and everything else is an invisible gesture.
+The default control scheme keeps the screen clear: only L, R and a small B button are drawn, and everything else is an invisible gesture. Unfortunately with gesture controls comes some inherent lag as the game has to wait about 60ms to make sure that your tap was not a swipe.
 
 | Where | Action | Button |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ On iPhones with a ProMotion display, 120 fps smooth motion is supported: an in-b
 
 ## Setup
 
-1. Sideload the `.ipa` (for example with AltStore, SideStore or Impactor; for Linux users I recommend iloader).
+1. Sideload the `.ipa` (for example with AltStore, SideStore or Impactor; For Linux users I recommend iloader).
 2. Open the app once, then open the Files app: **On My iPhone → MOTHER 3**.
 3. Copy in your files:
    - `bios/gba_bios.bin`: GBA BIOS
