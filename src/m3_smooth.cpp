@@ -11,6 +11,9 @@
 #include <vector>
 
 #include "gba_ppu.h"
+#if defined(M3_IOS)
+#include "host_platform.h"
+#endif
 
 namespace m3smooth {
 namespace {
@@ -91,7 +94,13 @@ bool display_is_fast() {
     SDL_Window* win = game_window();
     const int index = win ? SDL_GetWindowDisplayIndex(win) : 0;
     SDL_DisplayMode mode{};
-    const int hz = SDL_GetCurrentDisplayMode(index < 0 ? 0 : index, &mode) == 0 ? mode.refresh_rate : 0;
+    int hz = SDL_GetCurrentDisplayMode(index < 0 ? 0 : index, &mode) == 0 ? mode.refresh_rate : 0;
+#if defined(M3_IOS)
+    // The display link tracks the real refresh (ProMotion may sit at 60 Hz
+    // while SDL reports the panel's maximum).
+    if (const auto interval = gbarecomp::display_refresh_interval(); interval.count() > 0)
+        hz = static_cast<int>(1e9 / static_cast<double>(interval.count()) + 0.5);
+#endif
     const bool fast = hz >= 100 || hz == 0;  // 0 = the driver doesn't say; the player chose 120
     if (fast != g.fast_display || g.display_hz != hz) {
         std::fprintf(stderr, "m3-smooth: display %d reports %d Hz -> 120 fps %s\n", index, hz, fast ? "on" : "off");
@@ -149,6 +158,18 @@ int interpolate(const gba::GbaPpu* ppu, const std::uint8_t* rgb, std::uint32_t w
                 bg_vx[y][bg] = -scroll_step(a.hofs[bg], b.hofs[bg]);
                 bg_vy[y][bg] = -scroll_step(a.vofs[bg], b.vofs[bg]);
             }
+        // Raster effects (the battle backgrounds' per-line wobble) rewrite a
+        // layer's offsets line by line, so its "velocity" changes every few
+        // lines. That isn't motion; shifting each line by its own amount
+        // tears the layer into gaps. Splits (a fixed status window over a
+        // scrolling map) change velocity only a couple of times per frame.
+        for (int bg = 0; bg < 4; ++bg) {
+            int changes = 0;
+            for (int y = 1; y < 160; ++y)
+                changes += bg_vx[y][bg] != bg_vx[y - 1][bg] || bg_vy[y][bg] != bg_vy[y - 1][bg];
+            if (changes > 8)
+                for (int y = 0; y < 160; ++y) bg_vx[y][bg] = bg_vy[y][bg] = 0;
+        }
         const std::uint8_t* oam = ppu->latched_oam();
         Obj before[128];
         for (int i = 0; i < 128; ++i) before[i] = read_obj(g.oam.data(), i);

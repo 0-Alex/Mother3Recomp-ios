@@ -242,7 +242,7 @@ int mother3_main(int argc, char** argv) {
         if (settings.widescreen) args.insert(args.begin() + 1, {"--view-width", "284"});
         // m3_smooth_120; ProMotion needs CADisableMinimumFrameDurationOnPhone (Info.plist).
         m3smooth::enable(settings.smooth);
-        if (settings.smooth > 0) m3_ios_request_high_refresh();
+        m3_ios_start_display_link(settings.smooth > 0);
     }
     opts.orientation = gbarecomp::RunOptions::Orientation::Landscape;
     opts.resume_suspend_state_on_launch = true;

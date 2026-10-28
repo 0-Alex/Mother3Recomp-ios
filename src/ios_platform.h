@@ -13,6 +13,7 @@ bool m3_ios_prepare_process(std::vector<std::string>& args);
 // switches the main thread onto a reserved 256 MiB stack for the call.
 int m3_ios_run_with_stack(int (*entry)(int, char**), int argc, char** argv);
 
-// Ask ProMotion displays for their full refresh rate (smooth motion needs
-// 120 Hz; otherwise each in-between frame costs a 60 Hz vsync).
-void m3_ios_request_high_refresh();
+// Hold the display at a fixed refresh rate (ProMotion's full rate for smooth
+// motion, which needs 120 Hz; otherwise 60 Hz) and hand its refresh grid to
+// FramePacer so frames are paced in step with the display.
+void m3_ios_start_display_link(bool high_refresh);

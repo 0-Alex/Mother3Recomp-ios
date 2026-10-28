@@ -36,7 +36,15 @@
  // LoadLibrary/GetProcAddress. Until this existed, every heal off Windows failed
 --- a/src/runtime/host_window.cpp
 +++ b/src/runtime/host_window.cpp
-@@ -46,6 +46,17 @@
+@@ -18,6 +18,7 @@
+ 
+ #include "color_lut.h"
+ #include "host_overlay.h"
++#include "host_platform.h"
+ #include "presentation_layout.h"
+ #include "touch_input.h"
+ #if defined(GBARECOMP_RUNTIME_UI)
+@@ -46,6 +47,17 @@
  #define RECOMP_AUDIO_DRC_IMPL
  #include "recomp_audio_drc.h"
  
@@ -54,7 +62,7 @@
  #if defined(__ANDROID__)
  #include <atomic>
  #include <jni.h>
-@@ -370,6 +381,11 @@
+@@ -370,6 +382,11 @@
      SDL_Texture*  texture  = nullptr;
      SDL_Texture*  sharp_texture = nullptr;
      SDL_Texture*  texture2x = nullptr;  // interpolated frames at twice the base size
@@ -66,7 +74,7 @@
      int           sharp_texture_w = 0;
      int           sharp_texture_h = 0;
      bool          sharp_target_failed = false;
-@@ -393,8 +409,24 @@
+@@ -393,8 +410,24 @@
          float start_x = 0.0f, start_y = 0.0f;
          float grab_dx = 0.0f, grab_dy = 0.0f;  // toggle centre - finger
          bool routed = false;
@@ -91,7 +99,7 @@
      // Virtual gamepad capability (Android by default; desktop via
      // GBARECOMP_TOUCH_CONTROLS) and its player-controlled visibility.
      bool touch_controls = false;
-@@ -645,6 +677,7 @@
+@@ -645,6 +678,7 @@
      float dpad_thick = 0;
      PadCircle a, b;
      PadRect l, r, select, start;
@@ -99,7 +107,7 @@
      PadRect toggle;
  };
  
-@@ -704,11 +737,30 @@
+@@ -704,11 +738,30 @@
          p.a.y = cy - button_r * 0.9f;
          p.b.x = rx - button_r * kClusterDx * 0.5f;
          p.b.y = cy + button_r * 0.9f;
@@ -132,7 +140,7 @@
      } else {
          // Portrait: a control band at the bottom (the space under the game
          // image when it is tall enough, else overlaid on the image).
-@@ -773,6 +825,39 @@
+@@ -773,6 +826,39 @@
      return buttons;
  }
  
@@ -172,7 +180,7 @@
  bool touch_input_enabled(const Backend* b) {
      return b && (b->touch_controls || b->touch_policy || b->touch_emulation);
  }
-@@ -804,11 +889,23 @@
+@@ -804,11 +890,23 @@
      return nullptr;
  }
  
@@ -198,7 +206,7 @@
      return buttons;
  }
  
-@@ -1052,18 +1149,20 @@
+@@ -1052,18 +1150,20 @@
  
      // D-pad cross: backing + outline per arm, pressed arm highlighted.
      const float arm = p.dpad.r, t = p.dpad_thick, cx = p.dpad.x, cy = p.dpad.y;
@@ -231,7 +239,7 @@
  
      auto round_button = [&](const PadCircle& c, int bit, OverlayColor tint, const char* text) {
          ov.fill_circle(c.x, c.y, c.r, on(bit) ? pressed : tint, S);
-@@ -1071,8 +1170,10 @@
+@@ -1071,8 +1171,10 @@
          if (ov.text_supported())
              ov.text(c.x, c.y - 2.6f * mm, 5.2f * mm, label, text, OverlayAlign::Center, S);
      };
@@ -244,7 +252,7 @@
  
      auto pill = [&](const PadRect& r, int bit, const char* text, float radius) {
          ov.fill_rect(r.x, r.y, r.w, r.h, radius, on(bit) ? pressed : backing, S);
-@@ -1085,6 +1186,19 @@
+@@ -1085,6 +1187,19 @@
      };
      pill(p.l, 9, "L", 2.0f * mm);
      pill(p.r, 8, "R", 2.0f * mm);
@@ -264,7 +272,7 @@
      pill(p.select, 2, "SELECT", p.select.h * 0.5f);
      pill(p.start, 3, "START", p.start.h * 0.5f);
  }
-@@ -1337,7 +1451,7 @@
+@@ -1337,7 +1452,7 @@
      io.IniFilename = nullptr;
      io.LogFilename = nullptr;
      ImGui::StyleColorsDark();
@@ -273,7 +281,7 @@
      io.ConfigFlags |= ImGuiConfigFlags_IsTouchScreen;
      io.FontGlobalScale = 1.75f;
      ImGui::GetStyle().ScaleAllSizes(1.75f);
-@@ -1442,7 +1556,7 @@
+@@ -1442,7 +1557,7 @@
  PresentationLayout current_presentation_layout(Backend* b, int* out_w, int* out_h) {
      int drawable_w = 0;
      int drawable_h = 0;
@@ -282,7 +290,7 @@
      if (SDL_GetRendererOutputSize(b->renderer, &drawable_w, &drawable_h) != 0 ||
          drawable_w <= 0 || drawable_h <= 0) {
          SDL_GetWindowSize(b->window, &drawable_w, &drawable_h);
-@@ -1519,7 +1633,7 @@
+@@ -1519,7 +1634,7 @@
  #endif
      // Portrait top anchoring (per-present game request): the image hugs the
      // top safe edge so host-drawn controls get all of the space below it.
@@ -291,7 +299,7 @@
      const bool explicit_destination = true;
  #else
      // The fixed native desktop path presents through SDL's logical size,
-@@ -1723,11 +1837,20 @@
+@@ -1723,11 +1838,20 @@
      b->touch_controls = true;
      b->fullscreen = android_display_preference("fullscreenPreferenceFromNative", true) ? 1 : 0;
      b->fill_display = android_display_preference("fillDisplayPreferenceFromNative", false);
@@ -312,7 +320,7 @@
      // Desktop validation of inset-aware layouts: GBARECOMP_SAFE_INSETS=l,t,r,b
      // (drawable pixels). Android supplies real cutout insets separately.
      if (const char* insets = std::getenv("GBARECOMP_SAFE_INSETS")) {
-@@ -1759,6 +1882,11 @@
+@@ -1759,6 +1883,11 @@
          ((b->expanded_view || b->resize_driven_view ||
            b->freely_resizable_window)
               ? static_cast<Uint32>(SDL_WINDOW_RESIZABLE) : Uint32{0});
@@ -324,7 +332,7 @@
  #if defined(__ANDROID__)
      // SDLActivity maps this hint (plus RESIZABLE) onto the Activity's
      // requested orientation; "any" becomes a full-sensor, live-rotating app.
-@@ -1866,7 +1994,7 @@
+@@ -1866,7 +1995,7 @@
          log_display_mode(b->window, "open");
      }
      b->cadence.init();
@@ -333,7 +341,18 @@
      // Mobile presentation owns the whole drawable: a centered integer-scaled
      // game viewport plus dedicated side rails for touch controls.
      SDL_RenderSetLogicalSize(b->renderer, 0, 0);
-@@ -2170,6 +2298,7 @@
+@@ -2110,6 +2239,10 @@
+     // (gba_audio_callback) drains it at the device rate with band-limited
+     // resampling + a P-only fill servo — no queue underrun, no hard flush.
+     SDL_LockMutex(b->audio_mtx);
++    // A pacer locked to the display runs the guest slightly fast (60.00 vs
++    // 59.73 Hz); tell the resampler, or its servo spends nearly all of its
++    // +/-0.5% range absorbing that and has none left for real drift.
++    b->bridge.cfg.source_rate = 65536.0 * display_lock_speed();
+     rab_push(&b->bridge, samples, static_cast<int>(count)); // mono: count == frames
+     SDL_UnlockMutex(b->audio_mtx);
+ 
+@@ -2170,6 +2303,7 @@
      runtime_imgui_shutdown(b);
  #endif
      destroy_sharp_texture(b);
@@ -341,7 +360,7 @@
      if (b->texture2x) SDL_DestroyTexture(b->texture2x);
      if (b->texture)   SDL_DestroyTexture(b->texture);
      if (b->renderer)  SDL_DestroyRenderer(b->renderer);
-@@ -2260,6 +2389,44 @@
+@@ -2260,6 +2394,44 @@
  #endif
      return b->texture2x;
  }
@@ -386,7 +405,7 @@
  }  // namespace
  
  void HostWindow::present(const uint8_t* rgb888) { present_scaled(rgb888, 1); }
-@@ -2345,9 +2512,10 @@
+@@ -2345,9 +2517,10 @@
          std::fflush(stderr);
      }
      if (touch_input_enabled(b)) publish_touch_presentation(b);
@@ -398,7 +417,7 @@
  #else
      if (!b->expanded_view && !b->resize_driven_view) {
          SDL_RenderCopy(b->renderer, frame_texture, nullptr, nullptr);
-@@ -2628,7 +2796,7 @@
+@@ -2628,7 +2801,7 @@
          // SDL then reports the left mouse button as a touch finger
          // (touchId SDL_MOUSE_TOUCHID), exercising the real finger path.
          SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "1");
@@ -407,7 +426,7 @@
          // A desktop session that asks for touch emulation also gets the pad
          // capability so its toggle and layouts can be validated.
          b->touch_controls = true;
-@@ -2636,7 +2804,7 @@
+@@ -2636,7 +2809,7 @@
      }
      if (!b->pad_choice_saved) {
          const bool platform_default =
@@ -416,7 +435,7 @@
              true;
  #else
              false;
-@@ -2911,9 +3079,29 @@
+@@ -2911,9 +3084,29 @@
                  if (auto* touch = allocate_touch(b, e.tfinger.fingerId)) {
                      touch->x = touch->start_x = px;
                      touch->y = touch->start_y = py;
@@ -447,7 +466,7 @@
                      // The toggle wins over the pad so it can never be buried
                      // under a button (it is small and player-movable).
                      if (pad_toggle_available(b) &&
-@@ -2921,7 +3109,7 @@
+@@ -2921,7 +3114,7 @@
                          touch->toggle = true;
                          touch->grab_dx = pad.toggle.x + pad.toggle.w * 0.5f - px;
                          touch->grab_dy = pad.toggle.y + pad.toggle.h * 0.5f - py;
@@ -456,7 +475,7 @@
                          touch->pad = true;
                          touch->buttons = buttons;
                      } else {
-@@ -2932,9 +3120,50 @@
+@@ -2932,9 +3125,50 @@
              } else if (auto* touch = find_touch(b, e.tfinger.fingerId)) {
                  touch->x = px;
                  touch->y = py;
@@ -566,3 +585,210 @@
      if (settings.screen == ScreenKind::Classic) {
          for (int px = 0; px < 32768; ++px)
              table[px] = classic_entry(static_cast<uint16_t>(px));
+--- a/src/runtime/host_platform.h
++++ b/src/runtime/host_platform.h
+@@ -15,6 +15,26 @@
+ std::vector<unsigned char> read_file(const std::string& path,
+                                      std::string* error = nullptr);
+ 
++// Display refresh source (a host whose compositor always syncs, e.g. iOS
++// CADisplayLink): the time of a recent refresh and the current refresh
++// interval, both on steady_clock. Returns false while unknown. With one
++// installed, FramePacer snaps its deadlines onto the display's refresh grid
++// whenever a GBA frame is within 2% of a whole number of refreshes, so every
++// frame is held for the same number of refreshes instead of beating against
++// them (a doubled or dropped frame every couple of seconds at 59.73 vs 60 Hz).
++using DisplayRefreshSource = bool (*)(std::chrono::steady_clock::time_point* last_refresh,
++                                      std::chrono::nanoseconds* interval);
++void set_display_refresh_source(DisplayRefreshSource source);
++// The display's current refresh interval, or zero when no source knows it.
++std::chrono::nanoseconds display_refresh_interval();
++// Whole refreshes per frame of `period` when it is within 2% of a whole
++// number of `interval`s (the pacer then locks to the display), else 0.
++long long refreshes_per_frame(std::chrono::nanoseconds period, std::chrono::nanoseconds interval);
++// Guest speed relative to real hardware while FramePacer is locked to the
++// display at its default GBA rate (60.00 / 59.7275 on a 60 or 120 Hz panel),
++// 1.0 otherwise. Audio consumers scale their nominal source rate by it.
++double display_lock_speed();
++
+ // ── FramePacer ─────────────────────────────────────────────────────
+ // Wall-clock frame limiter. Emulation speed must be governed by the
+ // GBA's real frame rate (59.7275 Hz), NOT by the host monitor's refresh
+@@ -58,7 +78,9 @@
+ private:
+     using clock = std::chrono::steady_clock;
+     void sleep_until_point(clock::time_point target);
++    void snap_to_display();
+     std::chrono::nanoseconds period_{};
++    std::chrono::nanoseconds step_{};  // period_, or a whole number of refreshes when snapped
+     clock::time_point next_{};
+     bool uncapped_ = false;
+     bool raised_timer_res_ = false;
+--- a/src/runtime/host_platform.cpp
++++ b/src/runtime/host_platform.cpp
+@@ -1,6 +1,8 @@
+ #include "host_platform.h"
+ 
++#include <cmath>
+ #include <cstdio>
++#include <cstdlib>
+ #include <thread>
+ 
+ #if defined(_WIN32)
+@@ -14,6 +16,37 @@
+ 
+ namespace gbarecomp {
+ 
++namespace {
++DisplayRefreshSource g_display_refresh_source = nullptr;
++}  // namespace
++
++void set_display_refresh_source(DisplayRefreshSource source) {
++    g_display_refresh_source = source;
++}
++
++std::chrono::nanoseconds display_refresh_interval() {
++    std::chrono::steady_clock::time_point last;
++    std::chrono::nanoseconds interval{};
++    if (!g_display_refresh_source || !g_display_refresh_source(&last, &interval))
++        return std::chrono::nanoseconds{};
++    return interval;
++}
++
++long long refreshes_per_frame(std::chrono::nanoseconds period, std::chrono::nanoseconds interval) {
++    if (period.count() <= 0 || interval.count() <= 0) return 0;
++    const double ratio = static_cast<double>(period.count()) / interval.count();
++    const long long whole = static_cast<long long>(ratio + 0.5);
++    return whole >= 1 && std::abs(ratio - whole) <= 0.02 * whole ? whole : 0;
++}
++
++double display_lock_speed() {
++    const std::chrono::nanoseconds interval = display_refresh_interval();
++    const std::chrono::nanoseconds period(
++        static_cast<long long>(1e9 / FramePacer::kGbaFrameHz + 0.5));
++    const long long whole = refreshes_per_frame(period, interval);
++    return whole ? static_cast<double>(period.count()) / (interval.count() * whole) : 1.0;
++}
++
+ FramePacer::FramePacer(double target_hz) {
+     if (target_hz <= 0.0) target_hz = kGbaFrameHz;
+     period_ = std::chrono::nanoseconds(
+@@ -48,6 +81,25 @@
+ 
+ void FramePacer::reset() {
+     next_ = clock::now() + period_;
++    step_ = period_;
++    snap_to_display();
++}
++
++// Move next_ to the nearest refresh-grid point, a quarter of a refresh after
++// the refresh itself: presents then commit well clear of both refresh edges,
++// so timer and render jitter can't flip a frame into the neighbouring one.
++void FramePacer::snap_to_display() {
++    step_ = period_;
++    clock::time_point last;
++    std::chrono::nanoseconds interval{};
++    if (!g_display_refresh_source || !g_display_refresh_source(&last, &interval)) return;
++    const long long whole = refreshes_per_frame(period_, interval);
++    if (!whole) return;
++    const clock::time_point origin = last + interval / 4;
++    const long long k = static_cast<long long>(std::llround(
++        static_cast<double>((next_ - origin).count()) / interval.count()));
++    next_ = origin + interval * k;
++    step_ = interval * whole;
+ }
+ 
+ void FramePacer::wait_for_next_frame() {
+@@ -61,6 +113,7 @@
+     // after a hitch or a breakpoint pause).
+     if (now > next_ + period_) {
+         next_ = now + period_;
++        snap_to_display();
+         return;
+     }
+     sleep_until_point(next_);
+@@ -73,12 +126,13 @@
+     const clock::time_point woke = clock::now();
+     constexpr auto kLateTolerance = std::chrono::microseconds(1500);
+     next_ = woke > next_ + kLateTolerance ? woke + period_
+-                                          : next_ + period_;
++                                          : next_ + step_;
++    snap_to_display();
+ }
+ 
+ void FramePacer::wait_half_frame() {
+     if (uncapped_) return;
+-    const clock::time_point target = next_ - period_ / 2;
++    const clock::time_point target = next_ - step_ / 2;
+     if (clock::now() < target) sleep_until_point(target);
+ }
+ 
+--- a/src/runtime/runtime.cpp
++++ b/src/runtime/runtime.cpp
+@@ -3827,17 +3827,28 @@
+ 
+     // Smooth motion: a game that installs gba::g_present_interpolator gets an
+     // interpolated frame presented half a period before each paced real one.
++    // Both go out on fixed pacer slots (in-between at the half frame, real
++    // frame at the deadline), never straight after emulation: presenting the
++    // in-between frame as soon as the guest finished made its spacing to the
++    // real one follow the frame's emulation time, which judders whenever that
++    // time varies (fast scrolling through streamed map areas). Returns true
++    // when it already waited out the frame deadline.
+     std::vector<uint8_t> interpolated_fb;
+-    auto present_live_frame = [&]() {
++    auto present_live_frame = [&]() -> bool {
+         if (gba::g_present_interpolator && pacer && !pacer->uncapped() && !fast_forward_active) {
+             interpolated_fb.resize(ppu.render_bytes() * 4u);
+             if (gba::g_present_interpolator(&ppu, live_fb.data(), ppu.render_width(),
+                                             ppu.render_height(), interpolated_fb.data())) {
+-                win.present_scaled(interpolated_fb.data(), 2);
++                drain_host_audio();  // hand over this frame's audio before the waits
+                 pacer->wait_half_frame();
++                win.present_scaled(interpolated_fb.data(), 2);
++                pacer->wait_for_next_frame();
++                win.present(live_fb.data());
++                return true;
+             }
+         }
+         win.present(live_fb.data());
++        return false;
+     };
+ 
+     if (args.window) {
+@@ -3887,7 +3898,7 @@
+                     }
+                 }
+                 if (phase_active) fp_t1 = FramePhaseRing::now_ns();
+-                if (present_frame) present_live_frame();
++                const bool paced = present_frame && present_live_frame();
+                 if (phase_active) fp_t2 = FramePhaseRing::now_ns();
+                 drain_host_audio();
+                 // Windowed present-in-place stays inside one step_once() for
+@@ -3907,7 +3918,7 @@
+                     ++frames_presented;
+                     if (args.frames >= 0 && frames_presented >= args.frames)
+                         host_quit = true;
+-                    if (pacer) pacer->wait_for_next_frame();
++                    if (pacer && !paced) pacer->wait_for_next_frame();
+                 }
+                 if (phase_active) {
+                     frame_phase.record(frame, fp_t0, fp_t1, fp_t2, fp_t3,
+@@ -4281,7 +4292,7 @@
+                     }
+                 }
+                 if (phase_active) fp_t1 = FramePhaseRing::now_ns();
+-                if (present_frame) present_live_frame();
++                const bool paced = present_frame && present_live_frame();
+                 // Framedump (capture runs only) is attributed to present_us.
+                 if (framedump_dir && frame >= framedump_start &&
+                     (frame - framedump_start) % framedump_stride == 0 &&
+@@ -4308,7 +4319,7 @@
+                     // Normal play presents/paces every frame. Fast-forward
+                     // runs N guest frames per one paced host presentation,
+                     // making its selected multiplier independent of monitor Hz.
+-                    if (pacer) pacer->wait_for_next_frame();
++                    if (pacer && !paced) pacer->wait_for_next_frame();
+                 }
+                 if (phase_active) {
+                     frame_phase.record(frame, fp_t0, fp_t1, fp_t2, fp_t3,

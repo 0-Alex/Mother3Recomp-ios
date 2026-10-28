@@ -6,9 +6,11 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 
+#include "host_platform.h"
 #include "ios_platform.h"
 
 bool m3_ios_prepare_process(std::vector<std::string>& args) {
@@ -57,25 +59,53 @@ bool m3_ios_prepare_process(std::vector<std::string>& args) {
 }
 
 // ProMotion only runs an app above 60 Hz while something asks for it: SDL's
-// Metal renderer just presents drawables, so a smooth-motion session holds an
-// idle CADisplayLink requesting 120 Hz (Info.plist also carries
-// CADisableMinimumFrameDurationOnPhone, without which the request is capped).
+// Metal renderer just presents drawables, so the session holds an idle
+// CADisplayLink requesting the rate it wants (Info.plist also carries
+// CADisableMinimumFrameDurationOnPhone, without which 120 Hz is capped). The
+// link's timestamps also give FramePacer the display's refresh grid to lock
+// onto (gbarecomp::set_display_refresh_source).
+namespace {
+std::chrono::steady_clock::time_point g_last_refresh;
+std::chrono::nanoseconds g_refresh_interval{};
+
+bool display_refresh(std::chrono::steady_clock::time_point* last, std::chrono::nanoseconds* interval) {
+    if (g_refresh_interval.count() <= 0) return false;
+    *last = g_last_refresh;
+    *interval = g_refresh_interval;
+    return true;
+}
+}  // namespace
+
 @interface M3RefreshRequest : NSObject
 - (void)tick:(CADisplayLink*)link;
 @end
 @implementation M3RefreshRequest
-- (void)tick:(CADisplayLink*)link {}
+- (void)tick:(CADisplayLink*)link {
+    // CADisplayLink times are CACurrentMediaTime(); carry them over to
+    // steady_clock through the time elapsed since the refresh.
+    const auto now = std::chrono::steady_clock::now();
+    const double age = CACurrentMediaTime() - link.timestamp;
+    g_last_refresh = now - std::chrono::duration_cast<std::chrono::nanoseconds>(
+                               std::chrono::duration<double>(age));
+    const double interval = link.targetTimestamp - link.timestamp;
+    if (interval > 0.002 && interval < 0.05)
+        g_refresh_interval = std::chrono::nanoseconds(static_cast<long long>(interval * 1e9 + 0.5));
+}
 @end
 
-void m3_ios_request_high_refresh() {
+void m3_ios_start_display_link(bool high_refresh) {
     static CADisplayLink* link = nil;
     if (link) return;
     static M3RefreshRequest* target = [M3RefreshRequest new];
     link = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
+    // A fixed rate, not a range: a ProMotion panel left free to settle on 80 or
+    // 90 Hz can't show 60 Hz frames (or 120 Hz half frames) evenly.
     const float max_hz = static_cast<float>([UIScreen mainScreen].maximumFramesPerSecond);
-    link.preferredFrameRateRange = CAFrameRateRangeMake(std::min(80.0f, max_hz), max_hz, max_hz);
+    const float hz = high_refresh ? max_hz : std::min(60.0f, max_hz);
+    link.preferredFrameRateRange = CAFrameRateRangeMake(hz, hz, hz);
     [link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
-    std::fprintf(stderr, "ios: requested %.0f Hz presentation\n", max_hz);
+    gbarecomp::set_display_refresh_source(&display_refresh);
+    std::fprintf(stderr, "ios: requested %.0f Hz presentation\n", hz);
 }
 
 // m3_call_on_stack(fn, arg, stack_top): call fn(arg) with sp = stack_top,
