@@ -35,5 +35,7 @@
     <key>CADisableMinimumFrameDurationOnPhone</key><true/>
     <key>UIFileSharingEnabled</key><true/>
     <key>LSSupportsOpeningDocumentsInPlace</key><true/>
+    <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
+    <key>GCSupportsGameMode</key><true/>
 </dict>
 </plist>
