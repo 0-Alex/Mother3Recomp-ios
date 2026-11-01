@@ -131,7 +131,7 @@ Settings load(const std::string& dir) {
     if (auto it = cfg.find("m3_lcd_grid"); it != cfg.end() && !it->second.empty())
         s.lcd_grid = std::clamp(std::atof(it->second.c_str()), 0.0, 1.0);
     if (auto it = cfg.find("m3_controls"); it != cfg.end())
-        for (const char* name : {"gestures", "zones", "pad"})
+        for (const char* name : {"gestures", "zones", "pad", "off"})
             if (lower(it->second) == name) s.controls = name;
     if (auto it = cfg.find("screen"); it != cfg.end())
         for (const char* name : kScreens)

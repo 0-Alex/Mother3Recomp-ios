@@ -25,6 +25,7 @@ Prefer buttons you can see? Two other schemes are available (see [Settings](#set
 
 - `zones`: the same invisible stick on the left; anywhere else on the right half is A, pressed instantly (no swipe wait, so no added delay). L, R and the held B stay where they are, and Start (bottom left) and Select (bottom right) are small round buttons like the GBA's
 - `pad`: the original fixed on-screen gamepad
+- `off`: no on-screen controls at all, for playing with a controller
 
 ## Controllers
 
@@ -55,7 +56,7 @@ Settings live in `config.ini` in the same folder (created on first launch). Edit
 
 ```ini
 [Launcher]
-m3_controls=gestures   ; gestures (default), zones, pad
+m3_controls=gestures   ; gestures (default), zones, pad, off (controller only)
 screen=vivid           ; vivid, raw, classic, unlit, frontlit, backlit
 m3_vivid_gamma=1.25    ; vivid strength: 1.0 (same as raw) up to 2.0
 m3_lcd_grid=0          ; LCD grid strength: 0 (off) up to 1; try 0.25-0.5

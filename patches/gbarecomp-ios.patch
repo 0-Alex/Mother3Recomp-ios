@@ -299,14 +299,15 @@
      const bool explicit_destination = true;
  #else
      // The fixed native desktop path presents through SDL's logical size,
-@@ -1723,11 +1838,20 @@
+@@ -1723,11 +1838,21 @@
      b->touch_controls = true;
      b->fullscreen = android_display_preference("fullscreenPreferenceFromNative", true) ? 1 : 0;
      b->fill_display = android_display_preference("fillDisplayPreferenceFromNative", false);
 +#elif GBARECOMP_MOBILE_HOST
 +    b->touch_controls = true;
 +    if (const char* style = std::getenv("GBARECOMP_TOUCH_STYLE")) {
-+        const int value = std::atoi(style);  // 0 fixed pad, 1 zones, 2 gestures
++        const int value = std::atoi(style);  // -1 off (controller only), 0 fixed pad, 1 zones, 2 gestures
++        b->touch_controls = value >= 0;
 +        b->touch_zones = value >= 1;
 +        b->touch_gestures = value >= 2;
 +    }
