@@ -137,6 +137,7 @@ int run_hq_mixer_native(uint32_t mixer_start) {
     const uint32_t pitch_fac = bus_read_u32(var_area + 0x18u);
     int32_t remain_chn = static_cast<int32_t>(bus_read_u8(var_area + 0x06u));
     uint32_t chn_ptr = var_area + 0x50u;
+    uint32_t mixed_channels = 0;  // for the guest-cycle charge below
 
     constexpr uint8_t kFlagChnInit    = 0x80u;
     constexpr uint8_t kFlagChnRelease = 0x40u;
@@ -231,6 +232,7 @@ int run_hq_mixer_native(uint32_t mixer_start) {
             }
 
             if (active) {
+                ++mixed_channels;
                 bus_write_u8(chn_ptr + 0x09u, static_cast<uint8_t>(adsr_level));
                 const uint32_t master_vol = bus_read_u8(var_area + 0x07u) + 1u;
                 const uint32_t env_scaled = master_vol * adsr_level;
@@ -531,7 +533,15 @@ int run_hq_mixer_native(uint32_t mixer_start) {
     else             g_cpu.cpsr &= ~CPSR_T_BIT;
     g_cpu.R[15] = ret_pc & ~1u;
 
-    runtime_tick(r8_in * 16u);
+    // Charge what the guest mixer costs on the GBA: ~24 cycles per output
+    // sample plus ~19 per sample for each mixed channel (264 samples: 6.3k
+    // cycles idle, ~37k with six channels), measured per call both running it
+    // as guest code here (MOTHER3_HQ_MIXER_INTERP=1) and in mGBA 0.10.5.
+    // The old flat 16 per sample left the CPU 30-40k cycles ahead every frame,
+    // which moved the game's frame work so that map-block crossings missed
+    // VBlank: one repeated frame then a double step every 16 px of scrolling
+    // (mGBA scrolls those frames evenly).
+    runtime_tick(r8_in * (24u + 19u * mixed_channels));
     if (!runtime_call_should_return(ret_pc)) {
         runtime_dispatch_with_exchange(ret_pc);
     }
