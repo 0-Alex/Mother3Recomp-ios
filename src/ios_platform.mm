@@ -99,7 +99,24 @@ uint64_t vsync_wait(uint64_t target, std::chrono::nanoseconds timeout) {
 }
 
 const gbarecomp::DisplayVsyncSource kVsyncSource{&vsync_count, &vsync_wait};
+
+// SDL's Metal renderer (patched, cmake/sdl_ios_patch.cmake) reports each
+// drawable's presentedTime: when it actually reached the screen, on the
+// CACurrentMediaTime clock, or 0 when it was replaced before being shown.
+void presented(double presented_time) {
+    if (presented_time <= 0.0) {
+        gbarecomp::perf::note_displayed({}, true);
+        return;
+    }
+    const double ago = CACurrentMediaTime() - presented_time;
+    gbarecomp::perf::note_displayed(
+        std::chrono::steady_clock::now() -
+            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(ago)),
+        false);
+}
 }  // namespace
+
+extern "C" void (*SDL_M3_PresentedHook)(double presented_time);
 
 @interface M3RefreshRequest : NSObject
 - (void)tick:(CADisplayLink*)link;
@@ -147,6 +164,7 @@ void m3_ios_start_display_link(bool high_refresh, bool vsync) {
     [thread start];
     gbarecomp::set_display_refresh_source(&display_refresh);
     if (vsync) gbarecomp::set_display_vsync_source(&kVsyncSource);
+    if (gbarecomp::perf::enabled()) SDL_M3_PresentedHook = &presented;
     std::fprintf(stderr, "ios: requested %.0f Hz presentation, vsync %s\n", hz, vsync ? "on" : "off");
 }
 

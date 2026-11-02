@@ -26,6 +26,7 @@ struct Settings {
     double lcd_grid = 0.0;       // touch builds: LCD pixel-grid strength, 0 (off) .. 1
     std::string controls = "gestures";  // touch builds: gestures, zones (stick + A/B halves), pad, off (controller only)
     bool vsync = true;           // iOS: pace frames on display refresh ticks (0 = timer pacing)
+    bool perf_hud = false;       // iOS: frame-timing / fps overlay
     int audio_ms = 0;            // iOS: audio cushion in ms, 20..200 (0 = default 30); lower = less lag
     std::array<std::string, kButtonCount> keys;  // SDL scancode names
 };

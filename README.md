@@ -64,7 +64,21 @@ m3_smooth_120=1        ; 120 fps smooth motion: 0 off, 1 on (120 Hz screens)
 m3_widescreen=0        ; 1 = 16:9 widescreen in the field
 m3_vsync=1             ; 1 = frames follow the screen's refresh (smoothest), 0 = timer pacing
 m3_audio_ms=0          ; audio buffer in ms, 20-200 (0 = default 30); raise if sound crackles
+m3_perf_hud=0          ; 1 = show frame timing / fps overlay (see Performance overlay)
 ```
+
+## Performance overlay
+
+Set `m3_perf_hud=1` to show live frame timing in the top-left corner (the same readout is written to `ios-runtime.log` every 5 seconds):
+
+- **FPS SHOWN / SENT**: frames that actually reached the screen per second, and frames the game handed to the display; plus the screen's refresh rate.
+- **FRAME avg / max**: time between frames reaching the screen. Steady play is 16.7 ms (or 8.3 ms with 120 Hz smooth motion).
+- **WORK avg / max**: time each game frame takes to emulate and draw, not counting waiting.
+- **10S**: over the last ~10 seconds, how many refreshes each frame is usually held for (**HELD**), frames held for a different number of refreshes (**STUTTER**, what you see as choppiness), frames replaced before they were shown (**DROP**), and frames that missed their slot (**LATE**).
+- **AUDIO**: how much sound is buffered ahead of the speaker, and buffer underruns.
+- Green bars: time between frames on screen (red = a stutter or a dropped frame; the white line is the steady interval). Orange bars: per-frame work against one 16.7 ms frame (the white line is half of it, the limit for smooth motion's in-between frame).
+
+On the desktop build, run with `GBARECOMP_PERF_HUD=1` for the same overlay (there SHOWN is approximated by SENT).
 
 ## Example
 

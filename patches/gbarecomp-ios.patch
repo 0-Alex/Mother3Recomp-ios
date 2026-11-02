@@ -281,7 +281,181 @@
      io.ConfigFlags |= ImGuiConfigFlags_IsTouchScreen;
      io.FontGlobalScale = 1.75f;
      ImGui::GetStyle().ScaleAllSizes(1.75f);
-@@ -1442,7 +1557,7 @@
+@@ -1437,12 +1552,181 @@
+     SDL_SetRenderDrawBlendMode(b->renderer, SDL_BLENDMODE_NONE);
+ }
+ 
++// ── Performance HUD (GBARECOMP_PERF_HUD=1) ───────────────────────────────
++// Frame rate, frame-to-frame timing as shown on screen, per-frame work and
++// audio buffer fill, plus graphs of the last few seconds. Drawn with a
++// built-in 3x5 pixel font so it works without the runtime UI font stack.
++namespace {
++// Rows top to bottom, 3 bits each (4 = left column).
++struct HudGlyph { char c; std::uint8_t rows[5]; };
++constexpr HudGlyph kHudFont[] = {
++    {'0', {7, 5, 5, 5, 7}}, {'1', {2, 6, 2, 2, 7}}, {'2', {7, 1, 7, 4, 7}},
++    {'3', {7, 1, 3, 1, 7}}, {'4', {5, 5, 7, 1, 1}}, {'5', {7, 4, 7, 1, 7}},
++    {'6', {7, 4, 7, 5, 7}}, {'7', {7, 1, 1, 2, 2}}, {'8', {7, 5, 7, 5, 7}},
++    {'9', {7, 5, 7, 1, 7}}, {'A', {2, 5, 7, 5, 5}}, {'B', {6, 5, 6, 5, 6}},
++    {'C', {3, 4, 4, 4, 3}}, {'D', {6, 5, 5, 5, 6}}, {'E', {7, 4, 6, 4, 7}},
++    {'F', {7, 4, 6, 4, 4}}, {'G', {3, 4, 5, 5, 3}}, {'H', {5, 5, 7, 5, 5}},
++    {'I', {7, 2, 2, 2, 7}}, {'J', {1, 1, 1, 5, 2}}, {'K', {5, 5, 6, 5, 5}},
++    {'L', {4, 4, 4, 4, 7}}, {'M', {5, 7, 7, 5, 5}}, {'N', {6, 5, 5, 5, 5}},
++    {'O', {2, 5, 5, 5, 2}}, {'P', {6, 5, 6, 4, 4}}, {'Q', {2, 5, 5, 6, 3}},
++    {'R', {6, 5, 6, 5, 5}}, {'S', {3, 4, 2, 1, 6}}, {'T', {7, 2, 2, 2, 2}},
++    {'U', {5, 5, 5, 5, 7}}, {'V', {5, 5, 5, 5, 2}}, {'W', {5, 5, 7, 7, 5}},
++    {'X', {5, 5, 2, 5, 5}}, {'Y', {5, 5, 2, 2, 2}}, {'Z', {7, 1, 2, 4, 7}},
++    {'.', {0, 0, 0, 0, 2}}, {':', {0, 2, 0, 2, 0}}, {'/', {1, 1, 2, 4, 4}},
++    {'-', {0, 0, 7, 0, 0}}, {'%', {5, 1, 2, 4, 5}}, {'+', {0, 2, 7, 2, 0}},
++};
++
++const std::uint8_t* hud_glyph(char c) {
++    if (c >= 'a' && c <= 'z') c = static_cast<char>(c - 'a' + 'A');
++    for (const HudGlyph& g : kHudFont)
++        if (g.c == c) return g.rows;
++    return nullptr;
++}
++
++struct HudPainter {
++    SDL_Renderer* r;
++    std::vector<SDL_FRect> rects;
++    float px;  // font pixel size
++    void text(float x, float y, const char* s) {
++        for (; *s; ++s, x += 4.0f * px) {
++            const std::uint8_t* rows = hud_glyph(*s);
++            if (!rows) continue;
++            for (int row = 0; row < 5; ++row)
++                for (int col = 0; col < 3; ++col)
++                    if (rows[row] & (4 >> col))
++                        rects.push_back({x + col * px, y + row * px, px, px});
++        }
++    }
++    void flush(SDL_Color c) {
++        SDL_SetRenderDrawColor(r, c.r, c.g, c.b, c.a);
++        if (!rects.empty()) SDL_RenderFillRectsF(r, rects.data(), static_cast<int>(rects.size()));
++        rects.clear();
++    }
++    void box(float x, float y, float w, float h, SDL_Color c) {
++        SDL_SetRenderDrawColor(r, c.r, c.g, c.b, c.a);
++        const SDL_FRect rect{x, y, w, h};
++        SDL_RenderFillRectF(r, &rect);
++    }
++};
++}  // namespace
++
++void draw_perf_hud(Backend* b) {
++    if (!perf::enabled() || !b->renderer) return;
++    perf::Snapshot st;
++    perf::snapshot(&st);
++    double audio_ms = -1.0;
++    unsigned long long underruns = 0;
++    if (b->bridge_ready && b->audio_mtx) {
++        SDL_LockMutex(b->audio_mtx);
++        audio_ms = rab_fill_ms(&b->bridge);
++        underruns = static_cast<unsigned long long>(b->bridge.stats.underrun_events);
++        SDL_UnlockMutex(b->audio_mtx);
++    }
++
++    int logical_w = 0, logical_h = 0;
++    SDL_Rect viewport{};
++    SDL_RenderGetLogicalSize(b->renderer, &logical_w, &logical_h);
++    SDL_RenderGetViewport(b->renderer, &viewport);
++    SDL_RenderSetLogicalSize(b->renderer, 0, 0);
++    SDL_RenderSetViewport(b->renderer, nullptr);
++    SDL_SetRenderDrawBlendMode(b->renderer, SDL_BLENDMODE_BLEND);
++
++    int dw = 0, dh = 0;
++    SDL_GetRendererOutputSize(b->renderer, &dw, &dh);
++    const float mm = b->px_per_mm > 0.0f ? b->px_per_mm : dh / 60.0f;
++    HudPainter p{b->renderer, {}, std::max(2.0f, std::round(mm * 0.42f))};
++    const float line_h = 7.0f * p.px;
++    const float x0 = static_cast<float>(b->safe_insets.left) + 2.0f * mm;
++    const float y0 = static_cast<float>(b->safe_insets.top) + 2.0f * mm;
++
++    char lines[5][96];
++    const double refresh_ms = st.refresh_hz > 0 ? 1000.0 / st.refresh_hz : 1000.0 / 60.0;
++    char hz[24] = "";
++    if (st.refresh_hz > 0) std::snprintf(hz, sizeof hz, "  %.0f HZ", st.refresh_hz);
++    if (st.have_display)
++        std::snprintf(lines[0], sizeof lines[0], "FPS %.1f SHOWN  %.1f SENT%s",
++                      st.shown_fps, st.submit_fps, hz);
++    else
++        std::snprintf(lines[0], sizeof lines[0], "FPS %.1f SENT%s", st.submit_fps, hz);
++    std::snprintf(lines[1], sizeof lines[1], "FRAME %.1f AVG %.1f MAX MS",
++                  st.gap_avg_ms, st.gap_max_ms);
++    std::snprintf(lines[2], sizeof lines[2], "WORK %.1f AVG %.1f MAX MS",
++                  st.work_avg_ms, st.work_max_ms);
++    std::snprintf(lines[3], sizeof lines[3], "10S HELD %dX  STUTTER %d  DROP %d  LATE %d",
++                  st.held, st.stutters, st.dropped, st.late);
++    if (audio_ms >= 0.0)
++        std::snprintf(lines[4], sizeof lines[4], "AUDIO %.0f MS  UNDERRUN %llu", audio_ms, underruns);
++    else
++        std::snprintf(lines[4], sizeof lines[4], "AUDIO -");
++
++    // The same readout every 5 s in the log (ios-runtime.log on iPhone).
++    static Uint32 last_log = 0;
++    if (const Uint32 t = SDL_GetTicks(); t - last_log >= 5000) {
++        last_log = t;
++        std::fprintf(stderr, "perf: %s | %s | %s | %s | %s\n", lines[0], lines[1], lines[2],
++                     lines[3], lines[4]);
++        std::fflush(stderr);
++    }
++
++    std::size_t longest = 0;
++    for (const auto& l : lines) longest = std::max(longest, std::strlen(l));
++    const float graph_w = std::max(static_cast<float>(longest) * 4.0f * p.px,
++                                   static_cast<float>(perf::kGraphFrames) * std::max(1.0f, p.px * 0.5f));
++    const float bar_w = graph_w / perf::kGraphFrames;
++    const float gap_graph_h = 12.0f * mm, work_graph_h = 6.0f * mm;
++    const float text_h = 5 * line_h;
++    const float panel_w = graph_w + 2.0f * p.px * 2.0f;
++    const float panel_h = text_h + gap_graph_h + work_graph_h + 4.0f * p.px * 2.0f;
++    p.box(x0, y0, panel_w, panel_h, {0, 0, 0, 225});
++
++    const float tx = x0 + 2.0f * p.px, ty = y0 + 2.0f * p.px;
++    for (int i = 0; i < 5; ++i) p.text(tx, ty + i * line_h, lines[i]);
++    p.flush({255, 255, 255, 255});
++
++    // Shown-frame intervals: 0..50 ms, green on cadence, red for a stutter or
++    // a dropped frame (full height); the line marks the steady interval.
++    constexpr float kGapScaleMs = 50.0f;
++    const float gy = ty + text_h + p.px, gb = gy + gap_graph_h;
++    p.box(tx, gy, graph_w, gap_graph_h, {40, 40, 40, 255});
++    for (int pass = 0; pass < 2; ++pass) {
++        for (int i = 0; i < st.graph_n; ++i) {
++            if (st.graph_bad[i] != (pass == 1)) continue;
++            const float ms = st.graph_gap_ms[i] > 0 ? st.graph_gap_ms[i] : kGapScaleMs;
++            const float h = std::min(1.0f, ms / kGapScaleMs) * gap_graph_h;
++            const float x = tx + (perf::kGraphFrames - st.graph_n + i) * bar_w;
++            p.rects.push_back({x, gb - h, std::max(1.0f, bar_w - 1.0f), h});
++        }
++        p.flush(pass == 0 ? SDL_Color{80, 220, 100, 255} : SDL_Color{255, 70, 60, 255});
++    }
++    const float steady = static_cast<float>(refresh_ms * std::max(1, st.held));
++    p.box(tx, gb - std::min(1.0f, steady / kGapScaleMs) * gap_graph_h, graph_w,
++          std::max(1.0f, p.px * 0.4f), {255, 255, 255, 160});
++
++    // Per-frame work (emulation + render, excluding waits) against one GBA
++    // frame (16.7 ms, full height); the line is half of it, which a smooth-
++    // motion frame must stay under for its in-between frame to make its slot.
++    const float wy = gb + p.px * 2.0f, wb = wy + work_graph_h;
++    p.box(tx, wy, graph_w, work_graph_h, {40, 40, 40, 255});
++    const float budget = 1000.0f / 60.0f;
++    p.box(tx, wy + work_graph_h * 0.5f, graph_w, std::max(1.0f, p.px * 0.4f), {255, 255, 255, 120});
++    for (int i = 0; i < st.graph_work_n; ++i) {
++        const float h = std::min(1.0f, st.graph_work_ms[i] / budget) * work_graph_h;
++        const float x = tx + (perf::kGraphFrames - st.graph_work_n + i) * bar_w;
++        p.rects.push_back({x, wb - h, std::max(1.0f, bar_w - 1.0f), h});
++    }
++    p.flush({255, 190, 60, 255});
++
++    SDL_RenderSetLogicalSize(b->renderer, logical_w, logical_h);
++    SDL_RenderSetViewport(b->renderer, &viewport);
++    SDL_SetRenderDrawBlendMode(b->renderer, SDL_BLENDMODE_NONE);
++}
++
+ // The presentation rectangle every present path uses, so touch mapping and
+ // host chrome follow exactly what was drawn.
  PresentationLayout current_presentation_layout(Backend* b, int* out_w, int* out_h) {
      int drawable_w = 0;
      int drawable_h = 0;
@@ -290,7 +464,7 @@
      if (SDL_GetRendererOutputSize(b->renderer, &drawable_w, &drawable_h) != 0 ||
          drawable_w <= 0 || drawable_h <= 0) {
          SDL_GetWindowSize(b->window, &drawable_w, &drawable_h);
-@@ -1519,7 +1634,7 @@
+@@ -1519,7 +1803,7 @@
  #endif
      // Portrait top anchoring (per-present game request): the image hugs the
      // top safe edge so host-drawn controls get all of the space below it.
@@ -299,7 +473,7 @@
      const bool explicit_destination = true;
  #else
      // The fixed native desktop path presents through SDL's logical size,
-@@ -1723,11 +1838,21 @@
+@@ -1723,11 +2007,21 @@
      b->touch_controls = true;
      b->fullscreen = android_display_preference("fullscreenPreferenceFromNative", true) ? 1 : 0;
      b->fill_display = android_display_preference("fillDisplayPreferenceFromNative", false);
@@ -321,7 +495,7 @@
      // Desktop validation of inset-aware layouts: GBARECOMP_SAFE_INSETS=l,t,r,b
      // (drawable pixels). Android supplies real cutout insets separately.
      if (const char* insets = std::getenv("GBARECOMP_SAFE_INSETS")) {
-@@ -1759,6 +1884,11 @@
+@@ -1759,6 +2053,11 @@
          ((b->expanded_view || b->resize_driven_view ||
            b->freely_resizable_window)
               ? static_cast<Uint32>(SDL_WINDOW_RESIZABLE) : Uint32{0});
@@ -333,7 +507,7 @@
  #if defined(__ANDROID__)
      // SDLActivity maps this hint (plus RESIZABLE) onto the Activity's
      // requested orientation; "any" becomes a full-sensor, live-rotating app.
-@@ -1866,7 +1996,7 @@
+@@ -1866,7 +2165,7 @@
          log_display_mode(b->window, "open");
      }
      b->cadence.init();
@@ -342,7 +516,7 @@
      // Mobile presentation owns the whole drawable: a centered integer-scaled
      // game viewport plus dedicated side rails for touch controls.
      SDL_RenderSetLogicalSize(b->renderer, 0, 0);
-@@ -1929,7 +2059,14 @@
+@@ -1929,7 +2228,14 @@
      want.freq     = 65536;
      want.format   = AUDIO_S16SYS;
      want.channels = 1;
@@ -357,7 +531,7 @@
      const char* direct_audio_env = std::getenv("GBARECOMP_AUDIO_DIRECT");
      b->audio_direct =
          direct_audio_env && *direct_audio_env && *direct_audio_env != '0';
-@@ -1978,9 +2115,27 @@
+@@ -1978,9 +2284,27 @@
              cfg.source_rate = 65536.0;                 // engine's standardized GBA mixer rate
              cfg.host_rate   = static_cast<double>(got.freq);
              cfg.target_ms   = 60.0;                     // steady cushion (matches NES)
@@ -385,7 +559,7 @@
              SDL_PauseAudioDevice(b->audio_dev, 0);      // start the callback
          }
      }
-@@ -2110,6 +2265,10 @@
+@@ -2110,6 +2434,10 @@
      // (gba_audio_callback) drains it at the device rate with band-limited
      // resampling + a P-only fill servo — no queue underrun, no hard flush.
      SDL_LockMutex(b->audio_mtx);
@@ -396,7 +570,7 @@
      rab_push(&b->bridge, samples, static_cast<int>(count)); // mono: count == frames
      SDL_UnlockMutex(b->audio_mtx);
  
-@@ -2170,6 +2329,7 @@
+@@ -2170,6 +2498,7 @@
      runtime_imgui_shutdown(b);
  #endif
      destroy_sharp_texture(b);
@@ -404,7 +578,7 @@
      if (b->texture2x) SDL_DestroyTexture(b->texture2x);
      if (b->texture)   SDL_DestroyTexture(b->texture);
      if (b->renderer)  SDL_DestroyRenderer(b->renderer);
-@@ -2260,6 +2420,44 @@
+@@ -2260,6 +2589,44 @@
  #endif
      return b->texture2x;
  }
@@ -449,7 +623,7 @@
  }  // namespace
  
  void HostWindow::present(const uint8_t* rgb888) { present_scaled(rgb888, 1); }
-@@ -2345,9 +2543,10 @@
+@@ -2345,9 +2712,10 @@
          std::fflush(stderr);
      }
      if (touch_input_enabled(b)) publish_touch_presentation(b);
@@ -461,7 +635,16 @@
  #else
      if (!b->expanded_view && !b->resize_driven_view) {
          SDL_RenderCopy(b->renderer, frame_texture, nullptr, nullptr);
-@@ -2628,7 +2827,7 @@
+@@ -2386,6 +2754,8 @@
+     }
+ #endif
+     render_host_layers(b);
++    draw_perf_hud(b);
++    perf::note_submit();
+     // MC-WS-002: time the present itself (vsync blocks here — or doesn't)
+     // and stamp the DWM refresh counter into the cadence ring.
+     if (b->cadence.active()) {
+@@ -2628,7 +2998,7 @@
          // SDL then reports the left mouse button as a touch finger
          // (touchId SDL_MOUSE_TOUCHID), exercising the real finger path.
          SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "1");
@@ -470,7 +653,7 @@
          // A desktop session that asks for touch emulation also gets the pad
          // capability so its toggle and layouts can be validated.
          b->touch_controls = true;
-@@ -2636,7 +2835,7 @@
+@@ -2636,7 +3006,7 @@
      }
      if (!b->pad_choice_saved) {
          const bool platform_default =
@@ -479,7 +662,7 @@
              true;
  #else
              false;
-@@ -2911,9 +3110,29 @@
+@@ -2911,9 +3281,29 @@
                  if (auto* touch = allocate_touch(b, e.tfinger.fingerId)) {
                      touch->x = touch->start_x = px;
                      touch->y = touch->start_y = py;
@@ -510,7 +693,7 @@
                      // The toggle wins over the pad so it can never be buried
                      // under a button (it is small and player-movable).
                      if (pad_toggle_available(b) &&
-@@ -2921,7 +3140,7 @@
+@@ -2921,7 +3311,7 @@
                          touch->toggle = true;
                          touch->grab_dx = pad.toggle.x + pad.toggle.w * 0.5f - px;
                          touch->grab_dy = pad.toggle.y + pad.toggle.h * 0.5f - py;
@@ -519,7 +702,7 @@
                          touch->pad = true;
                          touch->buttons = buttons;
                      } else {
-@@ -2932,9 +3151,50 @@
+@@ -2932,9 +3322,50 @@
              } else if (auto* touch = find_touch(b, e.tfinger.fingerId)) {
                  touch->x = px;
                  touch->y = py;
@@ -639,7 +822,7 @@
  #include <string>
  #include <vector>
  
-@@ -15,6 +16,38 @@
+@@ -15,6 +16,77 @@
  std::vector<unsigned char> read_file(const std::string& path,
                                       std::string* error = nullptr);
  
@@ -675,10 +858,49 @@
 +};
 +void set_display_vsync_source(const DisplayVsyncSource* source);
 +
++// ── Performance HUD stats (GBARECOMP_PERF_HUD=1) ───────────────────
++// Frame timing as the player sees it: when frames are submitted, when they
++// actually reach the screen (hosts that can tell, e.g. iOS Metal), how long
++// each frame's own work took, and frames that missed their refresh slot.
++// Thread-safe; every note is a no-op unless the HUD is enabled.
++namespace perf {
++bool enabled();
++// FramePacer, once per frame: work = time not spent waiting since the
++// previous frame's wait ended; late = the frame missed its slot.
++void note_pacer(long long work_ns, long long wait_ns, bool late);
++// Host window: a present was submitted.
++void note_submit();
++// Platform: a submitted frame reached the screen at `when`, or was dropped
++// (replaced before it was ever shown).
++void note_displayed(std::chrono::steady_clock::time_point when, bool dropped);
++
++constexpr int kGraphFrames = 180;
++struct Snapshot {
++    // Refreshed twice a second.
++    double submit_fps = 0, shown_fps = 0, refresh_hz = 0;
++    double work_avg_ms = 0, work_max_ms = 0;
++    double gap_avg_ms = 0, gap_max_ms = 0;  // shown-to-shown interval
++    bool have_display = false;              // shown times are known
++    // Over the last kRecent frames.
++    int held = 0;       // usual refreshes per shown frame
++    int stutters = 0;   // shown frames held longer or shorter than `held`
++    int dropped = 0;    // frames never shown
++    int late = 0;       // frames that missed their pacer slot
++    // Oldest first; graph_bad marks a stutter.
++    int graph_n = 0;
++    float graph_gap_ms[kGraphFrames] = {};
++    bool graph_bad[kGraphFrames] = {};
++    float graph_work_ms[kGraphFrames] = {};
++    int graph_work_n = 0;
++};
++constexpr int kRecent = 600;  // ~10 s at 60 fps
++void snapshot(Snapshot* out);
++}  // namespace perf
++
  // ── FramePacer ─────────────────────────────────────────────────────
  // Wall-clock frame limiter. Emulation speed must be governed by the
  // GBA's real frame rate (59.7275 Hz), NOT by the host monitor's refresh
-@@ -55,10 +88,19 @@
+@@ -55,10 +127,23 @@
      void set_uncapped(bool on) { uncapped_ = on; }
      bool uncapped() const { return uncapped_; }
  
@@ -691,6 +913,10 @@
      using clock = std::chrono::steady_clock;
      void sleep_until_point(clock::time_point target);
 +    void snap_to_display();
++    bool wait_for_next_frame_impl();  // true when the frame missed its slot
++    void wait_half_frame_impl();
++    clock::time_point frame_wake_{};      // when the previous frame's wait ended
++    clock::duration frame_waited_{};      // half-frame waits since then
 +    long long vsync_refreshes() const;  // refreshes per frame under vsync, else 0
 +    uint64_t vsync_next_ = 0;           // refresh count the next frame waits for
      std::chrono::nanoseconds period_{};
@@ -700,16 +926,19 @@
      bool raised_timer_res_ = false;
 --- a/src/runtime/host_platform.cpp
 +++ b/src/runtime/host_platform.cpp
-@@ -1,6 +1,8 @@
+@@ -1,6 +1,11 @@
  #include "host_platform.h"
  
++#include <algorithm>
++#include <array>
 +#include <cmath>
  #include <cstdio>
 +#include <cstdlib>
++#include <mutex>
  #include <thread>
  
  #if defined(_WIN32)
-@@ -14,6 +16,45 @@
+@@ -14,6 +19,207 @@
  
  namespace gbarecomp {
  
@@ -752,16 +981,180 @@
 +    return whole ? static_cast<double>(period.count()) / (interval.count() * whole) : 1.0;
 +}
 +
++namespace perf {
++namespace {
++using pclock = std::chrono::steady_clock;
++
++template <typename T, int N>
++struct Ring {
++    std::array<T, N> v{};
++    int head = 0, size = 0;
++    void push(const T& x) {
++        v[head] = x;
++        head = (head + 1) % N;
++        if (size < N) ++size;
++    }
++    // i = 0 is the oldest kept entry.
++    const T& at(int i) const { return v[(head - size + i + N * 2) % N]; }
++};
++
++struct Shown { float gap_ms; bool dropped; };
++struct Work { float ms; bool late; };
++
++struct State {
++    std::mutex mutex;
++    Ring<Shown, kRecent> shown;
++    Ring<Work, kRecent> work;
++    pclock::time_point last_shown{};
++    // Current half-second window.
++    pclock::time_point window_start{};
++    int submits = 0, shows = 0, works = 0;
++    double work_sum = 0, work_max = 0, gap_sum = 0, gap_max = 0;
++    int gaps = 0;
++    bool any_display = false;
++    Snapshot latched;
++};
++State& state() {
++    static State s;
++    return s;
++}
++}  // namespace
++
++bool enabled() {
++    static const bool on = [] {
++        const char* e = std::getenv("GBARECOMP_PERF_HUD");
++        return e && *e && *e != '0';
++    }();
++    return on;
++}
++
++void note_pacer(long long work_ns, long long /*wait_ns*/, bool late) {
++    if (!enabled()) return;
++    State& s = state();
++    std::lock_guard<std::mutex> lock(s.mutex);
++    const double ms = work_ns / 1e6;
++    s.work.push({static_cast<float>(ms), late});
++    ++s.works;
++    s.work_sum += ms;
++    s.work_max = std::max(s.work_max, ms);
++}
++
++namespace {
++void record_shown(State& s, pclock::time_point when) {
++    if (s.last_shown != pclock::time_point{} && when > s.last_shown) {
++        const double gap = std::chrono::duration<double, std::milli>(when - s.last_shown).count();
++        // A long gap is a pause (menu, backgrounding), not a stutter.
++        if (gap < 250.0) {
++            s.shown.push({static_cast<float>(gap), false});
++            s.gap_sum += gap;
++            s.gap_max = std::max(s.gap_max, gap);
++            ++s.gaps;
++        }
++    }
++    s.last_shown = when;
++    ++s.shows;
++}
++}  // namespace
++
++void note_submit() {
++    if (!enabled()) return;
++    State& s = state();
++    std::lock_guard<std::mutex> lock(s.mutex);
++    ++s.submits;
++    // Hosts that never report on-screen times: submits stand in for them.
++    if (!s.any_display) record_shown(s, pclock::now());
++}
++
++void note_displayed(pclock::time_point when, bool dropped) {
++    if (!enabled()) return;
++    State& s = state();
++    std::lock_guard<std::mutex> lock(s.mutex);
++    if (!s.any_display) {  // drop the submit stand-ins
++        s.any_display = true;
++        s.shown = {};
++        s.last_shown = {};
++        s.shows = s.gaps = 0;
++        s.gap_sum = s.gap_max = 0.0;
++    }
++    if (dropped) {
++        s.shown.push({0.0f, true});
++        return;
++    }
++    record_shown(s, when);
++}
++
++void snapshot(Snapshot* out) {
++    State& s = state();
++    std::lock_guard<std::mutex> lock(s.mutex);
++    const pclock::time_point now = pclock::now();
++    Snapshot& l = s.latched;
++    if (s.window_start == pclock::time_point{}) s.window_start = now;
++    const double span = std::chrono::duration<double>(now - s.window_start).count();
++    if (span >= 0.5) {
++        l.submit_fps = s.submits / span;
++        l.shown_fps = s.shows / span;
++        l.work_avg_ms = s.works ? s.work_sum / s.works : 0.0;
++        l.work_max_ms = s.work_max;
++        l.gap_avg_ms = s.gaps ? s.gap_sum / s.gaps : 0.0;
++        l.gap_max_ms = s.gap_max;
++        s.window_start = now;
++        s.submits = s.shows = s.works = s.gaps = 0;
++        s.work_sum = s.work_max = s.gap_sum = s.gap_max = 0.0;
++    }
++    l.have_display = s.any_display;
++    const std::chrono::nanoseconds interval = display_refresh_interval();
++    const double refresh_ms = interval.count() > 0 ? interval.count() / 1e6 : 0.0;
++    l.refresh_hz = refresh_ms > 0 ? 1000.0 / refresh_ms : 0.0;
++
++    // Refreshes each shown frame was held for; the most common count is the
++    // steady cadence and anything else is a visible stutter.
++    auto refreshes = [&](float gap) {
++        const double unit = refresh_ms > 0 ? refresh_ms : 1000.0 / 60.0;
++        return static_cast<int>(std::lround(gap / unit));
++    };
++    std::array<int, 8> hist{};
++    for (int i = 0; i < s.shown.size; ++i) {
++        const Shown& f = s.shown.at(i);
++        if (!f.dropped) ++hist[std::clamp(refreshes(f.gap_ms), 0, 7)];
++    }
++    l.held = static_cast<int>(std::max_element(hist.begin() + 1, hist.end()) - hist.begin());
++    l.stutters = l.dropped = 0;
++    for (int i = 0; i < s.shown.size; ++i) {
++        const Shown& f = s.shown.at(i);
++        if (f.dropped) ++l.dropped;
++        else if (refreshes(f.gap_ms) != l.held) ++l.stutters;
++    }
++    l.late = 0;
++    for (int i = 0; i < s.work.size; ++i) l.late += s.work.at(i).late ? 1 : 0;
++
++    l.graph_n = 0;
++    const int first_shown = std::max(0, s.shown.size - kGraphFrames);
++    for (int i = first_shown; i < s.shown.size; ++i) {
++        const Shown& f = s.shown.at(i);
++        l.graph_gap_ms[l.graph_n] = f.gap_ms;
++        l.graph_bad[l.graph_n] = f.dropped || refreshes(f.gap_ms) != l.held;
++        ++l.graph_n;
++    }
++    l.graph_work_n = 0;
++    const int first_work = std::max(0, s.work.size - kGraphFrames);
++    for (int i = first_work; i < s.work.size; ++i)
++        l.graph_work_ms[l.graph_work_n++] = s.work.at(i).ms;
++    *out = l;
++}
++}  // namespace perf
++
  FramePacer::FramePacer(double target_hz) {
      if (target_hz <= 0.0) target_hz = kGbaFrameHz;
      period_ = std::chrono::nanoseconds(
-@@ -48,19 +89,62 @@
+@@ -48,20 +254,81 @@
  
  void FramePacer::reset() {
      next_ = clock::now() + period_;
 +    step_ = period_;
 +    snap_to_display();
 +    vsync_next_ = 0;  // the next vsync wait restarts from the current refresh
++    frame_wake_ = {};  // a pause or state load is not frame work
++    frame_waited_ = {};
 +}
 +
 +long long FramePacer::vsync_refreshes() const {
@@ -794,19 +1187,35 @@
      if (uncapped_) {
          next_ = clock::now();  // keep the deadline current for re-cap
 +        vsync_next_ = 0;
-+        return;
++        frame_wake_ = {};
+         return;
+     }
++    const clock::time_point entered = clock::now();
++    const bool late = wait_for_next_frame_impl();
++    const clock::time_point woke = clock::now();
++    if (frame_wake_ != clock::time_point{} && perf::enabled()) {
++        const auto waited = frame_waited_ + (woke - entered);
++        const auto work = (woke - frame_wake_) - waited;
++        perf::note_pacer(std::chrono::duration_cast<std::chrono::nanoseconds>(work).count(),
++                         std::chrono::duration_cast<std::chrono::nanoseconds>(waited).count(), late);
 +    }
++    frame_wake_ = woke;
++    frame_waited_ = {};
++}
++
++bool FramePacer::wait_for_next_frame_impl() {
 +    if (const long long whole = vsync_refreshes()) {
 +        // Vsync: wait for the refresh tick this frame is due on. A late frame
 +        // (emulation overran) goes out at once and the cadence restarts from
 +        // there; it never tries to catch up, and a tick that never arrives
 +        // (suspended) times out and restarts the same way.
 +        if (vsync_next_ == 0) vsync_next_ = g_display_vsync_source->count() + 1;
-+        const uint64_t seen = g_display_vsync_source->wait(vsync_next_, kVsyncTimeout);
++        const uint64_t due = vsync_next_;
++        const uint64_t seen = g_display_vsync_source->wait(due, kVsyncTimeout);
 +        vsync_next_ = seen + static_cast<uint64_t>(whole);
 +        next_ = clock::now() + period_;  // keep the timer path current
-         return;
-     }
++        return seen > due;  // its tick had already passed: shown a refresh late
++    }
 +    vsync_next_ = 0;
      clock::time_point now = clock::now();
      // If we've fallen more than one whole frame behind, resync instead
@@ -814,22 +1223,33 @@
      // after a hitch or a breakpoint pause).
      if (now > next_ + period_) {
          next_ = now + period_;
+-        return;
 +        snap_to_display();
-         return;
++        return true;
      }
      sleep_until_point(next_);
-@@ -73,12 +157,21 @@
+ 
+@@ -72,13 +339,29 @@
+     // period instead of producing a visibly short recovery frame.
      const clock::time_point woke = clock::now();
      constexpr auto kLateTolerance = std::chrono::microseconds(1500);
-     next_ = woke > next_ + kLateTolerance ? woke + period_
+-    next_ = woke > next_ + kLateTolerance ? woke + period_
 -                                          : next_ + period_;
-+                                          : next_ + step_;
++    const bool late = woke > next_ + kLateTolerance;
++    next_ = late ? woke + period_ : next_ + step_;
 +    snap_to_display();
++    return late;
  }
  
  void FramePacer::wait_half_frame() {
      if (uncapped_) return;
 -    const clock::time_point target = next_ - period_ / 2;
++    const clock::time_point entered = clock::now();
++    wait_half_frame_impl();
++    frame_waited_ += clock::now() - entered;
++}
++
++void FramePacer::wait_half_frame_impl() {
 +    if (const long long whole = vsync_refreshes()) {
 +        // The in-between frame's tick: half way (in whole refreshes) to the
 +        // real frame's. A 60 Hz panel has none; the real frame follows.

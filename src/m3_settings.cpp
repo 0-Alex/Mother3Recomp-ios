@@ -135,6 +135,7 @@ Settings load(const std::string& dir) {
             if (lower(it->second) == name) s.controls = name;
     s.vsync = to_int(cfg, "m3_vsync", 1, 0, 1) != 0;
     s.audio_ms = to_int(cfg, "m3_audio_ms", 0, 0, 200);
+    s.perf_hud = to_int(cfg, "m3_perf_hud", 0, 0, 1) != 0;
     if (auto it = cfg.find("screen"); it != cfg.end())
         for (const char* name : kScreens)
             if (lower(it->second) == name) s.screen = name;
@@ -159,7 +160,8 @@ void save(const std::string& dir, const Settings& s) {
                    {"m3_lcd_grid", vivid_gamma_text(s.lcd_grid)},
                    {"m3_controls", s.controls},
                    {"m3_vsync", s.vsync ? "1" : "0"},
-                   {"m3_audio_ms", std::to_string(s.audio_ms)}});
+                   {"m3_audio_ms", std::to_string(s.audio_ms)},
+                   {"m3_perf_hud", s.perf_hud ? "1" : "0"}});
     std::vector<std::pair<std::string, std::string>> keys;
     for (int i = 0; i < kButtonCount; ++i) keys.emplace_back(kButtonKeys[i], s.keys[i]);
     write_section(dir + "/keybinds.ini", "player1", keys);
