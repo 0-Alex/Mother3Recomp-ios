@@ -27,7 +27,8 @@ unset(CMAKE_CXX_STANDARD_REQUIRED)
 FetchContent_Declare(SDL2
     GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
     GIT_TAG        release-2.30.9
-    GIT_SHALLOW    TRUE)
+    GIT_SHALLOW    TRUE
+    PATCH_COMMAND  ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_LIST_DIR}/sdl_ios_audio_patch.cmake)
 FetchContent_MakeAvailable(SDL2)
 
 set(CMAKE_CXX_STANDARD "${_m3_saved_cxx_std}")

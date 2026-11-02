@@ -1,3 +1,4 @@
+#import <AVFoundation/AVFoundation.h>
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
@@ -7,8 +8,10 @@
 
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
+#include <mutex>
 
 #include "host_platform.h"
 #include "ios_platform.h"
@@ -63,17 +66,39 @@ bool m3_ios_prepare_process(std::vector<std::string>& args) {
 // CADisplayLink requesting the rate it wants (Info.plist also carries
 // CADisableMinimumFrameDurationOnPhone, without which 120 Hz is capped). The
 // link's timestamps also give FramePacer the display's refresh grid to lock
-// onto (gbarecomp::set_display_refresh_source).
+// onto (gbarecomp::set_display_refresh_source), and with vsync its ticks are
+// what the pacer waits on (gbarecomp::set_display_vsync_source).
+//
+// The link runs on its own thread: the game loop owns the main thread and
+// only spins its run loop while pumping events, so a main-thread link fired
+// late and in bursts, never on the refresh itself.
 namespace {
+std::mutex g_link_mutex;
+std::condition_variable g_link_cv;
+uint64_t g_refresh_count = 0;
 std::chrono::steady_clock::time_point g_last_refresh;
 std::chrono::nanoseconds g_refresh_interval{};
 
 bool display_refresh(std::chrono::steady_clock::time_point* last, std::chrono::nanoseconds* interval) {
+    std::lock_guard<std::mutex> lock(g_link_mutex);
     if (g_refresh_interval.count() <= 0) return false;
     *last = g_last_refresh;
     *interval = g_refresh_interval;
     return true;
 }
+
+uint64_t vsync_count() {
+    std::lock_guard<std::mutex> lock(g_link_mutex);
+    return g_refresh_count;
+}
+
+uint64_t vsync_wait(uint64_t target, std::chrono::nanoseconds timeout) {
+    std::unique_lock<std::mutex> lock(g_link_mutex);
+    g_link_cv.wait_for(lock, timeout, [&] { return g_refresh_count >= target; });
+    return g_refresh_count;
+}
+
+const gbarecomp::DisplayVsyncSource kVsyncSource{&vsync_count, &vsync_wait};
 }  // namespace
 
 @interface M3RefreshRequest : NSObject
@@ -85,27 +110,54 @@ bool display_refresh(std::chrono::steady_clock::time_point* last, std::chrono::n
     // steady_clock through the time elapsed since the refresh.
     const auto now = std::chrono::steady_clock::now();
     const double age = CACurrentMediaTime() - link.timestamp;
-    g_last_refresh = now - std::chrono::duration_cast<std::chrono::nanoseconds>(
-                               std::chrono::duration<double>(age));
+    const auto last = now - std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                std::chrono::duration<double>(age));
     const double interval = link.targetTimestamp - link.timestamp;
-    if (interval > 0.002 && interval < 0.05)
-        g_refresh_interval = std::chrono::nanoseconds(static_cast<long long>(interval * 1e9 + 0.5));
+    {
+        std::lock_guard<std::mutex> lock(g_link_mutex);
+        g_last_refresh = last;
+        if (interval > 0.002 && interval < 0.05)
+            g_refresh_interval = std::chrono::nanoseconds(static_cast<long long>(interval * 1e9 + 0.5));
+        ++g_refresh_count;
+    }
+    g_link_cv.notify_all();
 }
 @end
 
-void m3_ios_start_display_link(bool high_refresh) {
-    static CADisplayLink* link = nil;
-    if (link) return;
-    static M3RefreshRequest* target = [M3RefreshRequest new];
-    link = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
+void m3_ios_start_display_link(bool high_refresh, bool vsync) {
+    static NSThread* thread = nil;
+    if (thread) return;
     // A fixed rate, not a range: a ProMotion panel left free to settle on 80 or
     // 90 Hz can't show 60 Hz frames (or 120 Hz half frames) evenly.
     const float max_hz = static_cast<float>([UIScreen mainScreen].maximumFramesPerSecond);
     const float hz = high_refresh ? max_hz : std::min(60.0f, max_hz);
-    link.preferredFrameRateRange = CAFrameRateRangeMake(hz, hz, hz);
-    [link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    thread = [[NSThread alloc] initWithBlock:^{
+        static M3RefreshRequest* target = [M3RefreshRequest new];
+        CADisplayLink* link = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
+        link.preferredFrameRateRange = CAFrameRateRangeMake(hz, hz, hz);
+        [link addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+        for (;;) {
+            @autoreleasepool {
+                [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]];
+            }
+        }
+    }];
+    thread.name = @"m3-display-link";
+    thread.qualityOfService = NSQualityOfServiceUserInteractive;  // wake on the refresh, not after it
+    [thread start];
     gbarecomp::set_display_refresh_source(&display_refresh);
-    std::fprintf(stderr, "ios: requested %.0f Hz presentation\n", hz);
+    if (vsync) gbarecomp::set_display_vsync_source(&kVsyncSource);
+    std::fprintf(stderr, "ios: requested %.0f Hz presentation, vsync %s\n", hz, vsync ? "on" : "off");
+}
+
+void m3_ios_configure_audio_session() {
+    @autoreleasepool {
+        AVAudioSession* session = [AVAudioSession sharedInstance];
+        NSError* err = nil;
+        const BOOL ok = [session setPreferredIOBufferDuration:0.005 error:&err];
+        std::fprintf(stderr, "ios: preferred audio I/O buffer 5 ms %s (current %.1f ms)\n",
+                     ok ? "requested" : "refused", session.IOBufferDuration * 1000.0);
+    }
 }
 
 // m3_call_on_stack(fn, arg, stack_top): call fn(arg) with sp = stack_top,

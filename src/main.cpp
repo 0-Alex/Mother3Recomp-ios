@@ -245,8 +245,11 @@ int mother3_main(int argc, char** argv) {
                1);
         if (settings.widescreen) args.insert(args.begin() + 1, {"--view-width", "284"});
         // m3_smooth_120; ProMotion needs CADisableMinimumFrameDurationOnPhone (Info.plist).
+        if (settings.audio_ms >= 20)
+            setenv("GBARECOMP_AUDIO_TARGET_MS", std::to_string(settings.audio_ms).c_str(), 1);
+        m3_ios_configure_audio_session();
         m3smooth::enable(settings.smooth);
-        m3_ios_start_display_link(settings.smooth > 0);
+        m3_ios_start_display_link(settings.smooth > 0, settings.vsync);
     }
     opts.orientation = gbarecomp::RunOptions::Orientation::Landscape;
     opts.resume_suspend_state_on_launch = true;

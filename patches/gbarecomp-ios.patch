@@ -321,7 +321,7 @@
      // Desktop validation of inset-aware layouts: GBARECOMP_SAFE_INSETS=l,t,r,b
      // (drawable pixels). Android supplies real cutout insets separately.
      if (const char* insets = std::getenv("GBARECOMP_SAFE_INSETS")) {
-@@ -1759,6 +1883,11 @@
+@@ -1759,6 +1884,11 @@
          ((b->expanded_view || b->resize_driven_view ||
            b->freely_resizable_window)
               ? static_cast<Uint32>(SDL_WINDOW_RESIZABLE) : Uint32{0});
@@ -333,7 +333,7 @@
  #if defined(__ANDROID__)
      // SDLActivity maps this hint (plus RESIZABLE) onto the Activity's
      // requested orientation; "any" becomes a full-sensor, live-rotating app.
-@@ -1866,7 +1995,7 @@
+@@ -1866,7 +1996,7 @@
          log_display_mode(b->window, "open");
      }
      b->cadence.init();
@@ -342,7 +342,50 @@
      // Mobile presentation owns the whole drawable: a centered integer-scaled
      // game viewport plus dedicated side rails for touch controls.
      SDL_RenderSetLogicalSize(b->renderer, 0, 0);
-@@ -2110,6 +2239,10 @@
+@@ -1929,7 +2059,14 @@
+     want.freq     = 65536;
+     want.format   = AUDIO_S16SYS;
+     want.channels = 1;
++#if GBARECOMP_MOBILE_HOST && defined(__APPLE__)
++    // iOS: a ~10 ms quantum. Core Audio keeps two of them queued, and the
++    // bridge cushion only has to cover one, so audio trails the game by
++    // roughly half as much (rhythm combos are timed against the music).
++    want.samples  = 640;
++#else
+     want.samples  = 1024;  // ~15 ms callback quantum at 65 kHz
++#endif
+     const char* direct_audio_env = std::getenv("GBARECOMP_AUDIO_DIRECT");
+     b->audio_direct =
+         direct_audio_env && *direct_audio_env && *direct_audio_env != '0';
+@@ -1978,9 +2115,27 @@
+             cfg.source_rate = 65536.0;                 // engine's standardized GBA mixer rate
+             cfg.host_rate   = static_cast<double>(got.freq);
+             cfg.target_ms   = 60.0;                     // steady cushion (matches NES)
++#if GBARECOMP_MOBILE_HOST && defined(__APPLE__)
++            cfg.target_ms   = 30.0;                     // iOS: smaller quantum, vsync-steady producer
++#endif
++            // GBARECOMP_AUDIO_TARGET_MS: cushion override (latency vs. crackle).
++            if (const char* t = std::getenv("GBARECOMP_AUDIO_TARGET_MS"); t && *t) {
++                const double ms = std::atof(t);
++                if (ms >= 20.0 && ms <= 200.0) cfg.target_ms = ms;
++            }
+             cfg.preroll_ms  = 250.0;                    // boot pre-roll: hide the cold-start
+                                                         // recomp warm-up hitch (drains to target)
++#if GBARECOMP_MOBILE_HOST && defined(__APPLE__)
++            // The servo drains a pre-roll at most 0.5% faster than real time,
++            // so 250 ms would keep audio late for ~45 s after launch.
++            cfg.preroll_ms  = 120.0;
++#endif
+             if (rab_init(&b->bridge, &cfg) == 0) b->bridge_ready = true;
++            std::fprintf(stderr,
++                         "host_window: audio=bridge device=%dHz quantum=%u "
++                         "target=%.0fms preroll=%.0fms\n",
++                         got.freq, static_cast<unsigned>(got.samples),
++                         cfg.target_ms, cfg.preroll_ms);
+             SDL_PauseAudioDevice(b->audio_dev, 0);      // start the callback
+         }
+     }
+@@ -2110,6 +2265,10 @@
      // (gba_audio_callback) drains it at the device rate with band-limited
      // resampling + a P-only fill servo — no queue underrun, no hard flush.
      SDL_LockMutex(b->audio_mtx);
@@ -353,7 +396,7 @@
      rab_push(&b->bridge, samples, static_cast<int>(count)); // mono: count == frames
      SDL_UnlockMutex(b->audio_mtx);
  
-@@ -2170,6 +2303,7 @@
+@@ -2170,6 +2329,7 @@
      runtime_imgui_shutdown(b);
  #endif
      destroy_sharp_texture(b);
@@ -361,7 +404,7 @@
      if (b->texture2x) SDL_DestroyTexture(b->texture2x);
      if (b->texture)   SDL_DestroyTexture(b->texture);
      if (b->renderer)  SDL_DestroyRenderer(b->renderer);
-@@ -2260,6 +2394,44 @@
+@@ -2260,6 +2420,44 @@
  #endif
      return b->texture2x;
  }
@@ -406,7 +449,7 @@
  }  // namespace
  
  void HostWindow::present(const uint8_t* rgb888) { present_scaled(rgb888, 1); }
-@@ -2345,9 +2517,10 @@
+@@ -2345,9 +2543,10 @@
          std::fflush(stderr);
      }
      if (touch_input_enabled(b)) publish_touch_presentation(b);
@@ -418,7 +461,7 @@
  #else
      if (!b->expanded_view && !b->resize_driven_view) {
          SDL_RenderCopy(b->renderer, frame_texture, nullptr, nullptr);
-@@ -2628,7 +2801,7 @@
+@@ -2628,7 +2827,7 @@
          // SDL then reports the left mouse button as a touch finger
          // (touchId SDL_MOUSE_TOUCHID), exercising the real finger path.
          SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "1");
@@ -427,7 +470,7 @@
          // A desktop session that asks for touch emulation also gets the pad
          // capability so its toggle and layouts can be validated.
          b->touch_controls = true;
-@@ -2636,7 +2809,7 @@
+@@ -2636,7 +2835,7 @@
      }
      if (!b->pad_choice_saved) {
          const bool platform_default =
@@ -436,7 +479,7 @@
              true;
  #else
              false;
-@@ -2911,9 +3084,29 @@
+@@ -2911,9 +3110,29 @@
                  if (auto* touch = allocate_touch(b, e.tfinger.fingerId)) {
                      touch->x = touch->start_x = px;
                      touch->y = touch->start_y = py;
@@ -467,7 +510,7 @@
                      // The toggle wins over the pad so it can never be buried
                      // under a button (it is small and player-movable).
                      if (pad_toggle_available(b) &&
-@@ -2921,7 +3114,7 @@
+@@ -2921,7 +3140,7 @@
                          touch->toggle = true;
                          touch->grab_dx = pad.toggle.x + pad.toggle.w * 0.5f - px;
                          touch->grab_dy = pad.toggle.y + pad.toggle.h * 0.5f - py;
@@ -476,7 +519,7 @@
                          touch->pad = true;
                          touch->buttons = buttons;
                      } else {
-@@ -2932,9 +3125,50 @@
+@@ -2932,9 +3151,50 @@
              } else if (auto* touch = find_touch(b, e.tfinger.fingerId)) {
                  touch->x = px;
                  touch->y = py;
@@ -588,7 +631,15 @@
              table[px] = classic_entry(static_cast<uint16_t>(px));
 --- a/src/runtime/host_platform.h
 +++ b/src/runtime/host_platform.h
-@@ -15,6 +15,26 @@
+@@ -5,6 +5,7 @@
+ 
+ #include <chrono>
+ #include <cstddef>
++#include <cstdint>
+ #include <string>
+ #include <vector>
+ 
+@@ -15,6 +16,38 @@
  std::vector<unsigned char> read_file(const std::string& path,
                                       std::string* error = nullptr);
  
@@ -612,14 +663,36 @@
 +// 1.0 otherwise. Audio consumers scale their nominal source rate by it.
 +double display_lock_speed();
 +
++// Display vsync source (iOS: a CADisplayLink on its own thread). `count`
++// returns the refreshes seen so far; `wait` blocks until at least `target`
++// refreshes have been seen or `timeout` passes, returning the count. With
++// one installed and the pacer locked to the display, FramePacer waits on
++// real refresh ticks instead of a timer (vsync): each wake lands just after
++// a refresh, so a frame presented then always shows at the next refresh.
++struct DisplayVsyncSource {
++    uint64_t (*count)();
++    uint64_t (*wait)(uint64_t target, std::chrono::nanoseconds timeout);
++};
++void set_display_vsync_source(const DisplayVsyncSource* source);
++
  // ── FramePacer ─────────────────────────────────────────────────────
  // Wall-clock frame limiter. Emulation speed must be governed by the
  // GBA's real frame rate (59.7275 Hz), NOT by the host monitor's refresh
-@@ -58,7 +78,9 @@
+@@ -55,10 +88,19 @@
+     void set_uncapped(bool on) { uncapped_ = on; }
+     bool uncapped() const { return uncapped_; }
+ 
++    // True while waits follow display vsync ticks (a vsync source is set and
++    // a frame is a whole number of refreshes). Present right after a wait
++    // then: the frame goes up just after a refresh and shows at the next.
++    bool vsync_locked() const;
++
  private:
      using clock = std::chrono::steady_clock;
      void sleep_until_point(clock::time_point target);
 +    void snap_to_display();
++    long long vsync_refreshes() const;  // refreshes per frame under vsync, else 0
++    uint64_t vsync_next_ = 0;           // refresh count the next frame waits for
      std::chrono::nanoseconds period_{};
 +    std::chrono::nanoseconds step_{};  // period_, or a whole number of refreshes when snapped
      clock::time_point next_{};
@@ -636,13 +709,21 @@
  #include <thread>
  
  #if defined(_WIN32)
-@@ -14,6 +16,37 @@
+@@ -14,6 +16,45 @@
  
  namespace gbarecomp {
  
 +namespace {
 +DisplayRefreshSource g_display_refresh_source = nullptr;
++const DisplayVsyncSource* g_display_vsync_source = nullptr;
++// A refresh tick that never comes (app suspended, link paused) must not
++// freeze the game loop: give up after a few refreshes' worth.
++constexpr std::chrono::milliseconds kVsyncTimeout{100};
 +}  // namespace
++
++void set_display_vsync_source(const DisplayVsyncSource* source) {
++    g_display_vsync_source = source;
++}
 +
 +void set_display_refresh_source(DisplayRefreshSource source) {
 +    g_display_refresh_source = source;
@@ -674,12 +755,22 @@
  FramePacer::FramePacer(double target_hz) {
      if (target_hz <= 0.0) target_hz = kGbaFrameHz;
      period_ = std::chrono::nanoseconds(
-@@ -48,6 +81,25 @@
+@@ -48,19 +89,62 @@
  
  void FramePacer::reset() {
      next_ = clock::now() + period_;
 +    step_ = period_;
 +    snap_to_display();
++    vsync_next_ = 0;  // the next vsync wait restarts from the current refresh
++}
++
++long long FramePacer::vsync_refreshes() const {
++    if (!g_display_vsync_source) return 0;
++    return refreshes_per_frame(period_, display_refresh_interval());
++}
++
++bool FramePacer::vsync_locked() const {
++    return !uncapped_ && vsync_refreshes() > 0;
 +}
 +
 +// Move next_ to the nearest refresh-grid point, a quarter of a refresh after
@@ -700,7 +791,26 @@
  }
  
  void FramePacer::wait_for_next_frame() {
-@@ -61,6 +113,7 @@
+     if (uncapped_) {
+         next_ = clock::now();  // keep the deadline current for re-cap
++        vsync_next_ = 0;
++        return;
++    }
++    if (const long long whole = vsync_refreshes()) {
++        // Vsync: wait for the refresh tick this frame is due on. A late frame
++        // (emulation overran) goes out at once and the cadence restarts from
++        // there; it never tries to catch up, and a tick that never arrives
++        // (suspended) times out and restarts the same way.
++        if (vsync_next_ == 0) vsync_next_ = g_display_vsync_source->count() + 1;
++        const uint64_t seen = g_display_vsync_source->wait(vsync_next_, kVsyncTimeout);
++        vsync_next_ = seen + static_cast<uint64_t>(whole);
++        next_ = clock::now() + period_;  // keep the timer path current
+         return;
+     }
++    vsync_next_ = 0;
+     clock::time_point now = clock::now();
+     // If we've fallen more than one whole frame behind, resync instead
+     // of trying to replay the lost time (avoids a catch-up death spiral
      // after a hitch or a breakpoint pause).
      if (now > next_ + period_) {
          next_ = now + period_;
@@ -708,7 +818,7 @@
          return;
      }
      sleep_until_point(next_);
-@@ -73,12 +126,13 @@
+@@ -73,12 +157,21 @@
      const clock::time_point woke = clock::now();
      constexpr auto kLateTolerance = std::chrono::microseconds(1500);
      next_ = woke > next_ + kLateTolerance ? woke + period_
@@ -720,13 +830,21 @@
  void FramePacer::wait_half_frame() {
      if (uncapped_) return;
 -    const clock::time_point target = next_ - period_ / 2;
++    if (const long long whole = vsync_refreshes()) {
++        // The in-between frame's tick: half way (in whole refreshes) to the
++        // real frame's. A 60 Hz panel has none; the real frame follows.
++        if (whole < 2) return;
++        if (vsync_next_ == 0) vsync_next_ = g_display_vsync_source->count() + static_cast<uint64_t>(whole);
++        g_display_vsync_source->wait(vsync_next_ - static_cast<uint64_t>(whole / 2), kVsyncTimeout);
++        return;
++    }
 +    const clock::time_point target = next_ - step_ / 2;
      if (clock::now() < target) sleep_until_point(target);
  }
  
 --- a/src/runtime/runtime.cpp
 +++ b/src/runtime/runtime.cpp
-@@ -3827,17 +3827,28 @@
+@@ -3827,17 +3827,38 @@
  
      // Smooth motion: a game that installs gba::g_present_interpolator gets an
      // interpolated frame presented half a period before each paced real one.
@@ -752,12 +870,22 @@
 +                return true;
              }
          }
++        // Vsync: wait for the frame's refresh tick, then present. Presenting
++        // straight after emulation instead lands at a time that follows the
++        // frame's emulation cost, so a slow frame slips into the next refresh
++        // (a doubled frame then a skipped one).
++        if (pacer && pacer->vsync_locked() && !fast_forward_active) {
++            drain_host_audio();  // hand over this frame's audio before the wait
++            pacer->wait_for_next_frame();
++            win.present(live_fb.data());
++            return true;
++        }
          win.present(live_fb.data());
 +        return false;
      };
  
      if (args.window) {
-@@ -3887,7 +3898,7 @@
+@@ -3887,7 +3908,7 @@
                      }
                  }
                  if (phase_active) fp_t1 = FramePhaseRing::now_ns();
@@ -766,7 +894,7 @@
                  if (phase_active) fp_t2 = FramePhaseRing::now_ns();
                  drain_host_audio();
                  // Windowed present-in-place stays inside one step_once() for
-@@ -3907,7 +3918,7 @@
+@@ -3907,7 +3928,7 @@
                      ++frames_presented;
                      if (args.frames >= 0 && frames_presented >= args.frames)
                          host_quit = true;
@@ -775,7 +903,7 @@
                  }
                  if (phase_active) {
                      frame_phase.record(frame, fp_t0, fp_t1, fp_t2, fp_t3,
-@@ -4281,7 +4292,7 @@
+@@ -4281,7 +4302,7 @@
                      }
                  }
                  if (phase_active) fp_t1 = FramePhaseRing::now_ns();
@@ -784,7 +912,7 @@
                  // Framedump (capture runs only) is attributed to present_us.
                  if (framedump_dir && frame >= framedump_start &&
                      (frame - framedump_start) % framedump_stride == 0 &&
-@@ -4308,7 +4319,7 @@
+@@ -4308,7 +4329,7 @@
                      // Normal play presents/paces every frame. Fast-forward
                      // runs N guest frames per one paced host presentation,
                      // making its selected multiplier independent of monitor Hz.

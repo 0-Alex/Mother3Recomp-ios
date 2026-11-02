@@ -62,6 +62,8 @@ m3_vivid_gamma=1.25    ; vivid strength: 1.0 (same as raw) up to 2.0
 m3_lcd_grid=0          ; LCD grid strength: 0 (off) up to 1; try 0.25-0.5
 m3_smooth_120=1        ; 120 fps smooth motion: 0 off, 1 on (120 Hz screens)
 m3_widescreen=0        ; 1 = 16:9 widescreen in the field
+m3_vsync=1             ; 1 = frames follow the screen's refresh (smoothest), 0 = timer pacing
+m3_audio_ms=0          ; audio buffer in ms, 20-200 (0 = default 30); raise if sound crackles
 ```
 
 ## Example
